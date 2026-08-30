@@ -5,7 +5,7 @@ on:
     branches:
       - dm1q-fzg1-speed-backport
     paths:
-      - backports/dm1q-fzg1-speed.patch
+      - backports/apply_dm1q_fzg1_speed.py
       - .github/workflows/dm1q-fzg1-speed-backport.yml
   workflow_dispatch:
 
@@ -22,18 +22,34 @@ jobs:
           ref: dm1q-fzg1-speed-backport
           fetch-depth: 0
 
-      - name: Apply backport patch
+      - name: Apply safe source backport
         shell: bash
         run: |
           set -euxo pipefail
-          if git apply --check backports/dm1q-fzg1-speed.patch; then
-            git apply backports/dm1q-fzg1-speed.patch
-          elif git apply --reverse --check backports/dm1q-fzg1-speed.patch; then
-            echo "Patch already applied"
-          else
-            echo "Patch does not apply cleanly" >&2
-            exit 1
-          fi
+          python3 backports/apply_dm1q_fzg1_speed.py
+          git diff -- \
+            src/targets/dm1q-S911BXXSAFZG1/target.h \
+            src/common.h \
+            src/preload.c \
+            src/util.c \
+            src/kernelsnitch/kernelsnitch.h \
+            src/slide_app.c > backports/dm1q-fzg1-speed.patch
+          test -s backports/dm1q-fzg1-speed.patch || grep -q APP_SAFE_SPEED_BACKPORT src/targets/dm1q-S911BXXSAFZG1/target.h
+
+      - name: Verify protected target constants unchanged
+        shell: bash
+        run: |
+          set -euxo pipefail
+          BASE=d4fa7087360faa82186cf43255d6f485ff768655
+          git show "$BASE:src/targets/dm1q-S911BXXSAFZG1/target.h" \
+            | grep -v '^#define APP_SAFE_SPEED_BACKPORT 1$' > /tmp/target.base
+          grep -v '^#define APP_SAFE_SPEED_BACKPORT 1$' \
+            src/targets/dm1q-S911BXXSAFZG1/target.h > /tmp/target.new
+          cmp /tmp/target.base /tmp/target.new
+          git diff --exit-code "$BASE" -- \
+            src/targets/dm1q-S911BXXSAFZG1/p0_fingerprint.h \
+            kernelsu/android13-5.15.189_kernelsu-dm1q-S911BXXSAFZG1.ko \
+            kernelsu/ksud-dm1q-S911BXXSAFZG1-kdp
 
       - name: Install Android NDK
         shell: bash
@@ -58,6 +74,8 @@ jobs:
             echo "Base profile commit: d4fa7087360faa82186cf43255d6f485ff768655"
             echo "Target: dm1q-S911BXXSAFZG1"
             echo "NDK: 27.2.12479018"
+            echo "RMG_SCAN_PERF default: off (set RMG_SCAN_PERF=1 for opt-in runtime scan-core selection)"
+            echo "RMG_UCLAMP default: on (set RMG_UCLAMP=0 to disable)"
             echo
             sha256sum build/dm1q-S911BXXSAFZG1/cve-2026-43499 \
                       build/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so \
@@ -77,6 +95,7 @@ jobs:
             src/util.c \
             src/kernelsnitch/kernelsnitch.h \
             src/slide_app.c \
+            backports/dm1q-fzg1-speed.patch \
             backports/dm1q-fzg1-speed-build.txt
           if git diff --cached --quiet; then
             echo "No source changes to commit"
@@ -93,5 +112,6 @@ jobs:
             build/dm1q-S911BXXSAFZG1/cve-2026-43499
             build/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so
             build/dm1q-S911BXXSAFZG1/cve-2026-43499-root
+            backports/dm1q-fzg1-speed.patch
             backports/dm1q-fzg1-speed-build.txt
           if-no-files-found: error
