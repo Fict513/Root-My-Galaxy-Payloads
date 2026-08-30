@@ -1,0 +1,97 @@
+name: dm1q FZG1 speed backport
+
+on:
+  push:
+    branches:
+      - dm1q-fzg1-speed-backport
+    paths:
+      - backports/dm1q-fzg1-speed.patch
+      - .github/workflows/dm1q-fzg1-speed-backport.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: dm1q-fzg1-speed-backport
+          fetch-depth: 0
+
+      - name: Apply backport patch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if git apply --check backports/dm1q-fzg1-speed.patch; then
+            git apply backports/dm1q-fzg1-speed.patch
+          elif git apply --reverse --check backports/dm1q-fzg1-speed.patch; then
+            echo "Patch already applied"
+          else
+            echo "Patch does not apply cleanly" >&2
+            exit 1
+          fi
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          NDK_VERSION=27.2.12479018
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build dm1q S911B SAFZG1
+        shell: bash
+        run: |
+          set -euxo pipefail
+          make TARGET=dm1q-S911BXXSAFZG1 ANDROID_NDK_HOME="$ANDROID_NDK_HOME"
+
+      - name: Record hashes
+        shell: bash
+        run: |
+          set -euxo pipefail
+          {
+            echo "Base profile commit: d4fa7087360faa82186cf43255d6f485ff768655"
+            echo "Target: dm1q-S911BXXSAFZG1"
+            echo "NDK: 27.2.12479018"
+            echo
+            sha256sum build/dm1q-S911BXXSAFZG1/cve-2026-43499 \
+                      build/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so \
+                      build/dm1q-S911BXXSAFZG1/cve-2026-43499-root
+          } | tee backports/dm1q-fzg1-speed-build.txt
+
+      - name: Commit applied source changes and build report
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/targets/dm1q-S911BXXSAFZG1/target.h \
+            src/common.h \
+            src/preload.c \
+            src/util.c \
+            src/kernelsnitch/kernelsnitch.h \
+            src/slide_app.c \
+            backports/dm1q-fzg1-speed-build.txt
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+          else
+            git commit -m "Backport safe speed tuning for dm1q FZG1 [skip ci]"
+            git push origin HEAD:dm1q-fzg1-speed-backport
+          fi
+
+      - name: Upload rebuilt binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: dm1q-S911BXXSAFZG1-speed-backport
+          path: |
+            build/dm1q-S911BXXSAFZG1/cve-2026-43499
+            build/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so
+            build/dm1q-S911BXXSAFZG1/cve-2026-43499-root
+            backports/dm1q-fzg1-speed-build.txt
+          if-no-files-found: error
