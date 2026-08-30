@@ -1,0 +1,9 @@
+Base profile commit: d4fa7087360faa82186cf43255d6f485ff768655
+Target: dm1q-S911BXXSAFZG1
+NDK: 27.2.12479018
+RMG_SCAN_PERF default: off (set RMG_SCAN_PERF=1 for opt-in runtime scan-core selection)
+RMG_UCLAMP default: on (set RMG_UCLAMP=0 to disable)
+
+b59014b2e1d257b854195c393b9e88223be8b59748db4e9a8e71a1256ad829b0  build/dm1q-S911BXXSAFZG1/cve-2026-43499
+a46f7f0bdb885c5f443d3e7f057e1bb12bed4c3b2877c3a510c1b6e671c6cfbb  build/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so
+332505021a7573a99f418b3fe574e0e27cf9d216b1a9f7cb5a7a3254bda0011b  build/dm1q-S911BXXSAFZG1/cve-2026-43499-root

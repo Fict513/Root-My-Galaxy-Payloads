@@ -334,7 +334,11 @@ struct kernelsnitch_shared_state *kernelsnitch_setup(size_t __mm_struct_sz, size
         ks->thread_cnt,
         ks->collisions,
         ks->mte_enabled ? "enabled" : "disabled");
+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
+    pin_to_core(rmg_resolve_scan_core());
+#else
     pin_to_core(0);
+#endif
     futex_init();
 
     ks->state = KERNELSNITCH_INIT;
@@ -466,6 +470,34 @@ void kernelsnitch_bruteforce(struct kernelsnitch_shared_state *ks)
     ASSERT_pr((ks->state == KERNELSNITCH_COLLISIONS_FOUND), "wrong state\n");
     if (ks->verbose) pr_info("start bruteforcing\n");
     reset_cpu_pin();
+
+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
+    /* Timing-insensitive post-scan boost. Spawned workers inherit the clamp.
+     * RMG_UCLAMP=0 disables it immediately for A/B or recovery testing. */
+    if (!(getenv("RMG_UCLAMP") && getenv("RMG_UCLAMP")[0] == '0')) {
+        struct {
+            unsigned int size;
+            unsigned int sched_policy;
+            unsigned long long sched_flags;
+            int sched_nice;
+            unsigned int sched_priority;
+            unsigned long long sched_runtime;
+            unsigned long long sched_deadline;
+            unsigned long long sched_period;
+            unsigned int sched_util_min;
+            unsigned int sched_util_max;
+        } attr;
+        memset(&attr, 0, sizeof(attr));
+        attr.size = (unsigned int)sizeof(attr);
+        attr.sched_policy = 0; /* SCHED_NORMAL */
+        attr.sched_flags = 0x20; /* SCHED_FLAG_UTIL_CLAMP_MIN */
+        attr.sched_util_min = 512;
+        attr.sched_util_max = 1024;
+        if (syscall(274 /* __NR_sched_setattr */, 0, &attr, 0) == 0) {
+            pr_info("ksnitch bruteforce uclamp_min=512\n");
+        }
+    }
+#endif
 
     for (size_t i = 0; i < ks->thread_cnt; ++i) {
         struct mm_leak_arg *mm_leak_arg = (struct mm_leak_arg *)SYSCHK(calloc(1, sizeof(struct mm_leak_arg)));
