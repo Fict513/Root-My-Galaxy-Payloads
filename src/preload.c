@@ -102,17 +102,91 @@ static int attempt_delay_usec(int base_delay, int attempt) {
   return delay < 0 ? 0 : delay;
 }
 
+#if defined(APP_PAYLOAD) && APP_PAYLOAD && \
+    defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
+/* Order-3+ free pages across all zones. Once these counts stop changing,
+ * the boot allocator storm has settled enough to start without blindly
+ * sleeping all the way to 120 seconds. */
+static long long buddy_high_order_free(void) {
+  FILE *f = fopen("/proc/buddyinfo", "r");
+  if (!f) {
+    return -1;
+  }
+  char line[512];
+  long long total = -1;
+  while (fgets(line, sizeof(line), f)) {
+    unsigned long long tokens[24];
+    int filled = 0;
+    const char *p = line;
+    while (*p && filled < 24) {
+      char *end = NULL;
+      unsigned long long v = strtoull(p, &end, 10);
+      if (end == p) {
+        p++;
+        continue;
+      }
+      tokens[filled++] = v;
+      p = end;
+    }
+    if (filled >= 11) {
+      if (total < 0) {
+        total = 0;
+      }
+      for (int i = filled - 11 + 3; i < filled; ++i) {
+        total += (long long)tokens[i];
+      }
+    }
+  }
+  fclose(f);
+  return total;
+}
+#endif
+
 static void wait_for_boot_quiet_window(void) {
 #if defined(APP_PAYLOAD) && APP_PAYLOAD
   struct timespec uptime;
   SYSCHK(clock_gettime(CLOCK_BOOTTIME, &uptime));
-  if (uptime.tv_sec < APP_MIN_BOOT_UPTIME_SEC) {
-    time_t wait_sec = APP_MIN_BOOT_UPTIME_SEC - uptime.tv_sec;
-    pr_info("waiting for boot allocator quiet window seconds=%lld uptime=%lld\n",
-            (long long)wait_sec, (long long)uptime.tv_sec);
-    while (wait_sec > 0) {
-      wait_sec = sleep((unsigned int)wait_sec);
+  if (uptime.tv_sec >= APP_MIN_BOOT_UPTIME_SEC) {
+    return;
+  }
+  time_t wait_sec = APP_MIN_BOOT_UPTIME_SEC - uptime.tv_sec;
+  pr_info("waiting for boot allocator quiet window seconds=%lld uptime=%lld\n",
+          (long long)wait_sec, (long long)uptime.tv_sec);
+
+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
+  /* Final v1.2.0 policy: 60-second floor, three EXACT identical samples
+   * two seconds apart, and the original 120-second hard cap. Intentionally
+   * excludes the reverted drift-tolerance experiment that panicked early. */
+  static const time_t QUIET_FLOOR_SEC = 60;
+  static const int QUIET_STABLE_SAMPLES = 3;
+  long long prev = -1;
+  int stable = 0;
+  struct timespec now_ts;
+  for (int poll = 0; poll < 45; ++poll) {
+    SYSCHK(clock_gettime(CLOCK_BOOTTIME, &now_ts));
+    if (now_ts.tv_sec >= APP_MIN_BOOT_UPTIME_SEC) {
+      return;
     }
+    if (now_ts.tv_sec >= QUIET_FLOOR_SEC && stable >= QUIET_STABLE_SAMPLES) {
+      pr_info("boot allocator quiet (buddy stable) uptime=%lld\n",
+              (long long)now_ts.tv_sec);
+      return;
+    }
+    long long now = buddy_high_order_free();
+    if (now < 0) {
+      break;
+    }
+    if (prev >= 0 && now == prev) {
+      stable++;
+    } else {
+      stable = 0;
+    }
+    prev = now;
+    sleep(2);
+  }
+#endif
+  while (wait_sec > 0) {
+    wait_sec = sleep((unsigned int)wait_sec);
   }
 #endif
 }
