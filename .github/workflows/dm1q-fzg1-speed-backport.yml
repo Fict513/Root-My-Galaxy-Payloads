@@ -27,6 +27,9 @@ jobs:
         run: |
           set -euxo pipefail
           python3 backports/apply_dm1q_fzg1_speed.py
+          # cpu_set_t's portable bound is CPU_SETSIZE; AFFINITY_MAX_CPUS is
+          # private to a different affinity helper and is not visible here.
+          sed -i 's/AFFINITY_MAX_CPUS/CPU_SETSIZE/g' src/util.c
           git diff -- \
             src/targets/dm1q-S911BXXSAFZG1/target.h \
             src/common.h \
