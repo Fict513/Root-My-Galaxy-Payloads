@@ -1008,7 +1008,7 @@ index d4921bf..5bb036e 100644
  // Restore syscall_table[@nr] to its original value recorded by
  // ksu_syscall_table_hook(), and remove the entry from the tracking list.
 diff --git a/kernel/hook/syscall_hook_manager.c b/kernel/hook/syscall_hook_manager.c
-index cf21fed..ed43bae 100644
+index cf21fed..4f57b6f 100644
 --- a/kernel/hook/syscall_hook_manager.c
 +++ b/kernel/hook/syscall_hook_manager.c
 @@ -5,6 +5,7 @@
@@ -1019,10 +1019,10 @@ index cf21fed..ed43bae 100644
  #include <trace/events/syscalls.h>
  
  #include <linux/version.h>
-@@ -21,6 +22,304 @@
- #include "hook/syscall_event_bridge.h"
+@@ -22,6 +23,304 @@
  #if defined(__riscv)
  #include "hook/riscv64/syscall_regs.h"
+ #endif
 +#include "policy/allowlist.h"
 +
 +static bool syscall_hook_manager_initialized;
@@ -1321,9 +1321,9 @@ index cf21fed..ed43bae 100644
 +    ksu_setuid_hook_exit();
 +}
 +#endif
- #endif
  
  #ifdef CONFIG_KRETPROBES
+ 
 @@ -130,6 +429,23 @@ void __init ksu_syscall_hook_manager_init(void)
      int ret;
      pr_info("hook_manager: ksu_hook_manager_init called\n");
