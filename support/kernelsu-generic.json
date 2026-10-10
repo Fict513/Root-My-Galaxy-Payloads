@@ -41,9 +41,9 @@
       ],
       "daemon": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-generic-kdp",
-        "size": 4634224,
-        "sha256": "367c8fb6b9fc74655dc91339aa18804ac07b42066f3017f968622b189ff9d416",
-        "version": "3.4.0"
+        "size": 4659616,
+        "sha256": "52ef2826261f40b2f56459381b30dc2eeefa5b908016a0ac30e4712da2cc4b48",
+        "version": "3.4.1"
       }
     }
   ]
