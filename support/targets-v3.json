@@ -59,14 +59,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-pa2q-S9360ZCSCCZG1-kdp",
-        "size": 5098360,
-        "sha256": "54c2a7f02f917e517ff54b8458b824308a35e8ed463a0a8cac8cf2bf30ddcde4",
+        "size": 5088200,
+        "sha256": "ae42b567fc334e446f6c7942b567db1cf5caf56a624c2ec6d5aaab64b47e3d15",
         "version": "3.3.0"
       }
     },
     {
-      "payloadId": "pa2q-S9360ZCSCCZG1-ksun340",
-      "displayName": "Galaxy S25+ | Kernel 6.6.98 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "pa2q-S9360ZCSCCZG1-ksun341",
+      "displayName": "Galaxy S25+ | Kernel 6.6.98 | KernelSU-Next 3.4.1 (test)",
       "models": [
         "SM-S9360"
       ],
@@ -78,9 +78,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-pa2q-S9360ZCSCCZG1-kdp",
-        "size": 4230992,
-        "sha256": "2bd920fa50858db517774196547ccd9290256e6d836cf96431529c30575e5b94",
-        "version": "3.4.0"
+        "size": 4253440,
+        "sha256": "f228f69c62435cc02cd806e9177c59e30623e8c1f16d4e60fccd8770027fb31f",
+        "version": "3.4.1"
       }
     },
     {
@@ -97,8 +97,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-pa2q-S9360ZCSCCZG1-kdp",
-        "size": 4367112,
-        "sha256": "7ed6fa61e8788f274405384cbb59ea89c6287d0059ee54f245cc426bec9429d6",
+        "size": 4366568,
+        "sha256": "efd31680a6dc6cdd9b0be454b1718423f3aa9c48e923e0fe8af2d5012c5cac45",
         "version": "4.2.0-rc3"
       }
     },
@@ -115,8 +115,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-psq-S9370ZCS9CZG1-kdp",
-        "size": 5098360,
-        "sha256": "d07e4f37b335d2ca7d64cf07ea74e42040a22f04467a1dcb883dee8d44b5df91",
+        "size": 5088200,
+        "sha256": "a62003f90f35edf69733619fadf90899aee9b9e57906fa31609de15543ec65ab",
         "version": "3.3.0"
       }
     },
@@ -134,14 +134,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-psq-S9370ZCS9CZG1-kdp",
-        "size": 4367112,
-        "sha256": "2141fce13788b1d1986382e1dbf1236033474428e3c34b508a73cc02d1cdb1b0",
+        "size": 4366568,
+        "sha256": "b8713d45840856aca6e1e0e9dbf93c983050fa7b2c28e87dc9cfc48f3a0a50e0",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "psq-S9370ZCS9CZG1-ksun340",
-      "displayName": "Galaxy S25 Edge | Kernel 6.6.98 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "psq-S9370ZCS9CZG1-ksun341",
+      "displayName": "Galaxy S25 Edge | Kernel 6.6.98 | KernelSU-Next 3.4.1 (test)",
       "models": [
         "SM-S9370"
       ],
@@ -153,9 +153,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-psq-S9370ZCS9CZG1-kdp",
-        "size": 4230992,
-        "sha256": "1438d4d48ae836e7d658b691d07ccb1b7c59dd28e1d35ffb8d01553bf17e5ec5",
-        "version": "3.4.0"
+        "size": 4253440,
+        "sha256": "cdb19f531ee52b3f7279db800e5043055fe0c8bf36a872b9e4dddc89d5bb4986",
+        "version": "3.4.1"
       }
     },
     {
@@ -211,8 +211,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S928USQS6DZF2-kdp",
-        "size": 5113464,
-        "sha256": "516e0691a8ca02c1bfab73bf57c87d4c068f863c019e228274277d258575d0c0",
+        "size": 5103304,
+        "sha256": "c9badf60f50e505631fb5753b827e2574427fef0f1f74594bf43416a06464d10",
         "version": "3.3.0"
       }
     },
@@ -228,14 +228,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-e3q-S928USQS6DZF2-kdp",
-        "size": 4387848,
-        "sha256": "f16723df9a8d35ad273ad577a23bf4cf82186399fcaae65f0e1b93793f272968",
+        "size": 4387176,
+        "sha256": "a2c46599462c94e26a4160783e9d03a9e609d6f3c3c9532f10834330a1a16eac",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "e3q-S928USQS6DZF2-ksun340",
-      "displayName": "Galaxy S24 Ultra | Kernel 6.1.145 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "e3q-S928USQS6DZF2-ksun341",
+      "displayName": "Galaxy S24 Ultra | Kernel 6.1.145 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S928U1", "SM-S928W"],
       "kernelVersions": ["6.1.145"],
       "flavor": "kernelsu-next",
@@ -245,9 +245,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-e3q-S928USQS6DZF2-kdp",
-        "size": 4251728,
-        "sha256": "19364923471a0c859c715479d44787291ff1b15a47760d83a616b4db3f4d681d",
-        "version": "3.4.0"
+        "size": 4274688,
+        "sha256": "b591ab955b4d69075a6e9bbe1985c39b3fd6c8dedc9f2c1f49e35ac949f3af2f",
+        "version": "3.4.1"
       }
     },
     {
@@ -265,8 +265,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S928BXXS6DZF2-kdp",
-        "size": 5113464,
-        "sha256": "c846c216fb0294db6b38a4d0b599e6a9c1e02c2379a45ee89ca8be7669f0ac87",
+        "size": 5103304,
+        "sha256": "fe5ee77e5d1b31ef01147433002433d3cb5db4ce7960252f6e88a537b4629bdd",
         "version": "3.3.0"
       }
     },
@@ -286,14 +286,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-e3q-S928BXXS6DZF2-kdp",
-        "size": 4387848,
-        "sha256": "c138b91b8e1d52fdb84cd972ba5a4bca35dd1dce40a704a31855dd88006d4d86",
+        "size": 4387176,
+        "sha256": "37507026483e6063235e5649d41cd5d0bc1eeeec22e76b62261122fb1da92d39",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "e3q-S928BXXS6DZF2-ksun340",
-      "displayName": "Galaxy S24 Ultra (International) | Kernel 6.1.145 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "e3q-S928BXXS6DZF2-ksun341",
+      "displayName": "Galaxy S24 Ultra (International) | Kernel 6.1.145 | KernelSU-Next 3.4.1 (test)",
       "models": [
         "SM-S928B"
       ],
@@ -307,9 +307,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-e3q-S928BXXS6DZF2-kdp",
-        "size": 4251728,
-        "sha256": "2bdfc33c0e74fc780e49cc3233e127e7f79d0ba305b185cde05cad5cbc3d0f71",
-        "version": "3.4.0"
+        "size": 4274688,
+        "sha256": "90dc1068fea5af32008015d7642159669cbaff9a50a28269ef3d996901e86dca",
+        "version": "3.4.1"
       }
     },
     {
@@ -324,8 +324,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e2s-S926BXXUEDZDR-kdp",
-        "size": 5113464,
-        "sha256": "2c5c643b39b4849c333dc74aaa0c4664a74137da495198e56ada1a42d22a3ce9",
+        "size": 5103304,
+        "sha256": "400be934558ab254e43a754a68f4e24cf3a1473646224bc3b59160a179ec549a",
         "version": "3.3.0"
       }
     },
@@ -342,14 +342,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-e2s-S926BXXUEDZDR-kdp",
-        "size": 4387720,
-        "sha256": "c158b376c038fbb23cdf9908dbd8781e0bfe82b36e26c0027438aff33deab80c",
+        "size": 4387176,
+        "sha256": "bebe259f2820f446417dd4b2168f0ebf3194726204bc9e1a5add2ad211de52f8",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "e2s-S926BXXUEDZDR-ksun340",
-      "displayName": "Galaxy S24+ | Kernel 6.1.157 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "e2s-S926BXXUEDZDR-ksun341",
+      "displayName": "Galaxy S24+ | Kernel 6.1.157 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S926B"],
       "kernelVersions": ["6.1.157"],
       "flavor": "kernelsu-next",
@@ -360,9 +360,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-e2s-S926BXXUEDZDR-kdp",
-        "size": 4251600,
-        "sha256": "d89375a8ba2829703525f5100bfd9026f34bffa468e435c78afd5ec19c841851",
-        "version": "3.4.0"
+        "size": 4274560,
+        "sha256": "25ee39a93c76f26b257d2debc9d03495be26138582a388fe6f2a9a86fb1cb3b3",
+        "version": "3.4.1"
       }
     },
     {
@@ -377,8 +377,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e1s-S921BXXSFDZE1-kdp",
-        "size": 5113464,
-        "sha256": "ca305bb4df97505d7c06f1f0e3cb9312da13b1b9fd7a592bcf8c0635733ba609",
+        "size": 5103304,
+        "sha256": "84f48cec53237910662b1013d30d47eaba0d970e51c7f4d050107c5dbec51340",
         "version": "3.3.0"
       }
     },
@@ -395,14 +395,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-e1s-S921BXXSFDZE1-kdp",
-        "size": 4387752,
-        "sha256": "d447c83a49c692d5b25fb8139bb182f117e4875d29579cc2437574782a86731c",
+        "size": 4387176,
+        "sha256": "f034b18238d6bfdccf2ef01da7d7a531383b3501b83615b306947b925073e8e3",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "e1s-S921BXXSFDZE1-ksun340",
-      "displayName": "Galaxy S24 | Kernel 6.1.157 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "e1s-S921BXXSFDZE1-ksun341",
+      "displayName": "Galaxy S24 | Kernel 6.1.157 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S921B"],
       "kernelVersions": ["6.1.157"],
       "flavor": "kernelsu-next",
@@ -413,9 +413,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-e1s-S921BXXSFDZE1-kdp",
-        "size": 4251600,
-        "sha256": "c0602e99ddd82c6f3bd2d4d7ef2c30ffec21a56fd14a66bedd6010a8fffc1039",
-        "version": "3.4.0"
+        "size": 4274560,
+        "sha256": "0832f5e5ca86989d66b0294755b62fee4846adec23a1933e34b4d99166b96869",
+        "version": "3.4.1"
       }
     },
     {
@@ -430,13 +430,13 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A566EXXSCCZG6-kdp",
         "size": 5088200,
-        "sha256": "5f305d26e1d1dc08cf480757945484ae0cd139bb035af2cbb8bbbb09383accd0",
+        "sha256": "df8f96264b23f3cb493ff5e765ae737ca654acdbb68c748a486062a6da640512",
         "version": "3.3.0"
       }
     },
     {
-      "payloadId": "essi-A566EXXSCCZG6-ksun340",
-      "displayName": "Galaxy A56 5G | Kernel 6.6.102 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "essi-A566EXXSCCZG6-ksun341",
+      "displayName": "Galaxy A56 5G | Kernel 6.6.102 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-A5660", "SM-A566B", "SM-A566E", "SM-A566S", "SM-A566U1", "SM-A566W"],
       "kernelVersions": ["6.6.102"],
       "flavor": "kernelsu-next",
@@ -446,9 +446,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-A566EXXSCCZG6-kdp",
-        "size": 4230864,
-        "sha256": "54997654600a83ef42c8e8b6d1cc28a13c764502eb56b918e9449ebff1246ce3",
-        "version": "3.4.0"
+        "size": 4253440,
+        "sha256": "63fffa3fd3a57e2b2d65f78b36eb8a415894c2ec7d7595e255ea73e3ff536ce5",
+        "version": "3.4.1"
       }
     },
     {
@@ -464,7 +464,7 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-A566EXXSCCZG6-kdp",
         "size": 4366568,
-        "sha256": "7a09d4dfe72f7c7254ead576952d50ae73e59d3b08aba8dbc8501eba7280b8d5",
+        "sha256": "47724c06389b1b76a269a6196533acddd073a9a6731ae786d347cc8c07098b59",
         "version": "4.2.0-rc3"
       }
     },
@@ -480,13 +480,13 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A366WVLS3AYG1-kdp",
         "size": 5088200,
-        "sha256": "6a14b3336b7d2d0c84acbaa9193e2e47bbaf520eeece35f964b768c9da03aa4b",
+        "sha256": "a69602357c67d14f458c5e6ca82d5d051a6562e9c6b480b1022d5fb744b88859",
         "version": "3.3.0"
       }
     },
     {
-      "payloadId": "a36xq-A366WVLS3AYG1-ksun340",
-      "displayName": "Galaxy A36 5G | Kernel 6.6.46 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "a36xq-A366WVLS3AYG1-ksun341",
+      "displayName": "Galaxy A36 5G | Kernel 6.6.46 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-A366W"],
       "kernelVersions": ["6.6.46"],
       "flavor": "kernelsu-next",
@@ -496,9 +496,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-A366WVLS3AYG1-kdp",
-        "size": 4230864,
-        "sha256": "4837378b2cbdc0bc0d4b6e937e0bf06594559bf52c38a4d74504cadb8bc7a5d5",
-        "version": "3.4.0"
+        "size": 4253440,
+        "sha256": "452cad26faa40f16bfc72d150c55f0b86d50961afd839d372b6706ecfa1ae706",
+        "version": "3.4.1"
       }
     },
     {
@@ -514,7 +514,7 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-A366WVLS3AYG1-kdp",
         "size": 4366568,
-        "sha256": "8daa9f7508c9e671f86b6abbb7925d29f8dda09161462fabc2af696cd79c43ce",
+        "sha256": "0715da5005aa713c512fa57a32aeb7f55d1304c0b9e578b0f76f17f42fb55074",
         "version": "4.2.0-rc3"
       }
     },
@@ -530,8 +530,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm3q-S918BXXSAFZF5-kdp",
-        "size": 5115640,
-        "sha256": "1bfeefd41a4c76b9ddeb4d02c9b68375e83e0ea2ea706dc29b8914c698947e32",
+        "size": 5105552,
+        "sha256": "a2cd6c61f73b36867805e3e1e6a412a1d73513e13547da0c44b0f712e23801d4",
         "version": "3.3.0"
       }
     },
@@ -548,14 +548,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-dm3q-S918BXXSAFZF5-kdp",
-        "size": 4385032,
-        "sha256": "d8133e20fbde659030edc2dee5a0813f683a404a4b594c1ceabc70d829db96f3",
+        "size": 4384360,
+        "sha256": "f2ecb657ac3d91497ac662df6b195ca4c6d85c45c3a50f78ff177cba3cbf96d1",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "dm3q-S918BXXSAFZF5-ksun340",
-      "displayName": "Galaxy S23 Ultra SM-S918B | Kernel 5.15.189 (S918BXXSAFZF5) | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "dm3q-S918BXXSAFZF5-ksun341",
+      "displayName": "Galaxy S23 Ultra SM-S918B | Kernel 5.15.189 (S918BXXSAFZF5) | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S918B"],
       "kernelVersions": ["5.15.189"],
       "flavor": "kernelsu-next",
@@ -566,9 +566,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-dm3q-S918BXXSAFZF5-kdp",
-        "size": 4248144,
-        "sha256": "1826abe915ce5e47d181de438767a34e291a49769592e457bd12599b70c36c37",
-        "version": "3.4.0"
+        "size": 4271360,
+        "sha256": "8ff72ca12ddf223fe4fde7c4031c0bd1b81167fd9a668ef69f91c79e6decd2a6",
+        "version": "3.4.1"
       }
     },
     {
@@ -584,7 +584,7 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A536EXXSNGZG3-kdp",
         "size": 5092552,
-        "sha256": "f655ef7a072e38fb6b45d35a9c7643bc87fe29eda7c1dbdaa5e048ed4dcee0f9",
+        "sha256": "71aeee19aec430a4dc706bead0492bee22731b318adbb6f824db75cd9c3f4066",
         "version": "3.3.0"
       }
     },
@@ -602,13 +602,13 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-A536EXXSNGZG3-kdp",
         "size": 4369768,
-        "sha256": "ddd8cc30d91727985c6ab628cf17b9422dc28276d40a02936d5a287615147b44",
+        "sha256": "f4aef2f57f0332493ed0933cfa2012fde063f6f17615cb24433239c1004a56fc",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "a53x-A536EXXSNGZG3-ksun340",
-      "displayName": "Galaxy A53 5G | Kernel 5.10.237 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "a53x-A536EXXSNGZG3-ksun341",
+      "displayName": "Galaxy A53 5G | Kernel 5.10.237 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-A536E"],
       "kernelVersions": ["5.10.237"],
       "flavor": "kernelsu-next",
@@ -619,9 +619,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-A536EXXSNGZG3-kdp",
-        "size": 4234448,
-        "sha256": "70587cbda4088f739e65c68cd96a39425faaec603d66ec8d0af8b5da915c1759",
-        "version": "3.4.0"
+        "size": 4257024,
+        "sha256": "569850719024df4b09822825fd3ae29a7b0cc51f60b3c85172f97e8df4a6a8cf",
+        "version": "3.4.1"
       }
     },
     {
@@ -635,8 +635,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm3q-S9180ZHS8FZF5-kdp",
-        "size": 5115640,
-        "sha256": "a8d631203bee95398c9c014e27ef7e27df6660b25a49b34839c68b4f31d09968",
+        "size": 5105552,
+        "sha256": "07f1d207bafbb95ac754bc75839da4407beba556f17ac8a3ac1ca4b86c065f08",
         "version": "3.3.0"
       }
     },
@@ -652,14 +652,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-dm3q-S9180ZHS8FZF5-kdp",
-        "size": 4385032,
-        "sha256": "6858555c7314572b233cdc2a825d8d766b7169f90e0db9e5f5790b80e2b68782",
+        "size": 4384360,
+        "sha256": "3b6e2c17c8b975480aaa155fafbeebf2a43e177f92d5a121d2b2ce928e90af9b",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "dm3q-S9180ZHS8FZF5-ksun340",
-      "displayName": "Galaxy S23 Ultra | Kernel 5.15.189 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "dm3q-S9180ZHS8FZF5-ksun341",
+      "displayName": "Galaxy S23 Ultra | Kernel 5.15.189 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S9180", "SM-S918N", "SM-S918Q", "SM-S918U", "SM-S918W", "SM-S918U1"],
       "kernelVersions": ["5.15.189"],
       "flavor": "kernelsu-next",
@@ -669,9 +669,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-dm3q-S9180ZHS8FZF5-kdp",
-        "size": 4248144,
-        "sha256": "91770ec1d09d1557d3233d0664c9f11608bc2c8519df000737fdfc0cf8c1ecd6",
-        "version": "3.4.0"
+        "size": 4271360,
+        "sha256": "f23ede9b3ac7c4cd989e1f849be74b575f503911d2c72901a4460c31bb1ea713",
+        "version": "3.4.1"
       }
     },
     {
@@ -686,8 +686,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e1s-S921NKSSFDZF3-kdp",
-        "size": 5113464,
-        "sha256": "79ae69c8959d85dc080369e65719b7c68d9c91614852b5e35f0a930cdd4ad6da",
+        "size": 5103304,
+        "sha256": "22623fd763b7b4426561ce099f554a9db75f9200cbab53ff0d02eaa022ab0548",
         "version": "3.3.0"
       }
     },
@@ -704,14 +704,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-e1s-S921NKSSFDZF3-kdp",
-        "size": 4387720,
-        "sha256": "15b3419aad2060b141fc8d9a567ce693838be453edc7a28315afb4c5dffc799d",
+        "size": 4387176,
+        "sha256": "04279e4ffd9ed0f67f08200a64c55058835af44419d102c354c4d9e5e84ec252",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "e1s-S921NKSSFDZF3-ksun340",
-      "displayName": "Galaxy S24 | Kernel 6.1.157 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "e1s-S921NKSSFDZF3-ksun341",
+      "displayName": "Galaxy S24 | Kernel 6.1.157 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S921N"],
       "kernelVersions": ["6.1.157"],
       "flavor": "kernelsu-next",
@@ -722,9 +722,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-e1s-S921NKSSFDZF3-kdp",
-        "size": 4251600,
-        "sha256": "8538123ce9a0d598685c1de078fad0333659d6ef0d90dd92b308a01c39bc3e5b",
-        "version": "3.4.0"
+        "size": 4274560,
+        "sha256": "f10aed2f66ac0150fa7fd9922922beb11da314330f370f12ee08e7f9488b2456",
+        "version": "3.4.1"
       }
     },
     {
@@ -739,7 +739,7 @@
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm1q-S911U1UES6DYI3-kdp",
         "size": 5105552,
-        "sha256": "4e0a50d19f32028d2919d927a10529b06b1109ed6c14892f45e7ad8d2e00313f",
+        "sha256": "229fe26ca19f1f948dfe8c43aca5c76ac252ae99d347cf7cdb9a52c811d735f9",
         "version": "3.3.0"
       }
     },
@@ -755,14 +755,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-dm1q-S911U1UES6DYI3-kdp",
-        "size": 4385032,
-        "sha256": "206c586d0cbdb0341c11fc2a396071183b233b4c5b54da429afad4ea55d99022",
+        "size": 4384360,
+        "sha256": "c9641127c13a0558cea076e0b8e823fd72b001e967cd1821fec32f0fcdb60359",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "dm1q-S911U1UES6DYI3-ksun340",
-      "displayName": "Galaxy S23 (base) | Kernel 5.15.153 | tracefs/MCAST route | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "dm1q-S911U1UES6DYI3-ksun341",
+      "displayName": "Galaxy S23 (base) | Kernel 5.15.153 | tracefs/MCAST route | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S911U1"],
       "kernelVersions": ["5.15.153"],
       "flavor": "kernelsu-next",
@@ -772,9 +772,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-dm1q-S911U1UES6DYI3-kdp",
-        "size": 4248144,
-        "sha256": "f4a67947ad56ae88e9226ee97e978d72c499e451d41948b4cb20542bb33ed1fe",
-        "version": "3.4.0"
+        "size": 4271360,
+        "sha256": "c35536c818013daa0bf4c02355ea66ddeb4f7db26b7204eb9d75d797e7f18569",
+        "version": "3.4.1"
       }
     },
     {
@@ -789,8 +789,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-r12s-S721BXXSCDZF3-kdp",
-        "size": 5113464,
-        "sha256": "fdec21032903a8edc4da3be29229c23ef0a4b7939e211d2545349aba0b35ccae",
+        "size": 5103304,
+        "sha256": "0ff9dfd6a149bdd239e10b8ce55279316888e0e38c2ffc2aa44611c414dc9fa6",
         "version": "3.3.0"
       }
     },
@@ -807,14 +807,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-r12s-S721BXXSCDZF3-kdp",
-        "size": 4387720,
-        "sha256": "46b4ea413474832a0463da3569161d93099a414abc785fb3cd41b9fab84c45ec",
+        "size": 4387176,
+        "sha256": "b77f9df0e3c91b4fd2de4a3e60245d1cdc711a756537fd675edb5bc0545a253b",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "r12s-S721BXXSCDZF3-ksun340",
-      "displayName": "Galaxy S24 FE | Kernel 6.1.157 | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "r12s-S721BXXSCDZF3-ksun341",
+      "displayName": "Galaxy S24 FE | Kernel 6.1.157 | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S721B"],
       "kernelVersions": ["6.1.157"],
       "flavor": "kernelsu-next",
@@ -825,9 +825,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-r12s-S721BXXSCDZF3-kdp",
-        "size": 4251600,
-        "sha256": "778031f2b1e7adc6f9ff5d2b14fdfb49e5116c5e233513361d707eefd6399216",
-        "version": "3.4.0"
+        "size": 4274560,
+        "sha256": "8a4914727b4857c461ed025e68e1aa797e1300a2a1180d2e36612e2e4dee12e8",
+        "version": "3.4.1"
       }
     },
     {
@@ -846,8 +846,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-gts9-X710XXS6EZF1-kdp",
-        "size": 5115640,
-        "sha256": "6d84b2c8dede1901e0ccf386f4f5b9f784e0e5371ae3d9e6e21af07edfcaab85",
+        "size": 5105552,
+        "sha256": "bce63bfb3a3882bec07255354b612c5fec30b53840d7c6d6127cd47bf1850819",
         "version": "3.3.0"
       }
     },
@@ -868,14 +868,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-gts9-X710XXS6EZF1-kdp",
-        "size": 4385032,
-        "sha256": "370a47f042fbafdd6ae4e1561e5d34867423482dd33493b8dde3c4bf12f9bb9e",
+        "size": 4384360,
+        "sha256": "131f04fc75193e8fff5f7a64b6fc0666fce93e72c780d79c4b1cb2f0fda79827",
         "version": "4.2.0-rc3"
       }
     },
     {
-      "payloadId": "gts9-X710XXS6EZF1-ksun340",
-      "displayName": "Galaxy Tab S9 SM-X710 | Kernel 5.15.189 (X710XXS6EZF1) | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "gts9-X710XXS6EZF1-ksun341",
+      "displayName": "Galaxy Tab S9 SM-X710 | Kernel 5.15.189 (X710XXS6EZF1) | KernelSU-Next 3.4.1 (test)",
       "models": [
         "SM-X710"
       ],
@@ -890,9 +890,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-gts9-X710XXS6EZF1-kdp",
-        "size": 4248144,
-        "sha256": "f6d82edc5820c5da75f444ae6d91e4b0902bfac9eb75baaec0789aeca0ea1c8c",
-        "version": "3.4.0"
+        "size": 4271360,
+        "sha256": "9c4908aa6d010df0cf1330be8964923e1c9e1c76be6e9a12febee36b3383e495",
+        "version": "3.4.1"
       }
     },
     {
@@ -907,14 +907,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-e3q-S9280ZCS6DZF2-kdp",
-        "size": 5113464,
-        "sha256": "76e6e801f93e4ef94c6da51685ad7561962c3056df9bdd8d8979d65d5ea3de8c",
+        "size": 5103304,
+        "sha256": "86c0cc468441ffe992e018d688dc505429af79596c8f1566d7ea6e9c913e6851",
         "version": "3.3.0"
       }
     },
     {
-      "payloadId": "e3q-S9280ZCS6DZF2-ksun340",
-      "displayName": "Galaxy S24 Ultra China | Kernel 6.1.145 (S9280ZCS6DZF2) | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "e3q-S9280ZCS6DZF2-ksun341",
+      "displayName": "Galaxy S24 Ultra China | Kernel 6.1.145 (S9280ZCS6DZF2) | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S9280"],
       "kernelVersions": ["6.1.145"],
       "flavor": "kernelsu-next",
@@ -925,9 +925,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-e3q-S9280ZCS6DZF2-kdp",
-        "size": 4251728,
-        "sha256": "99fd9aa4d2c19fc41d2775480eb52e8c1052ec503200763df2d7d9c824c945d1",
-        "version": "3.4.0"
+        "size": 4274688,
+        "sha256": "5c36cc1308b59b013b4a103ecccad8687a06c44507ae3490837b045358693a6c",
+        "version": "3.4.1"
       }
     },
     {
@@ -943,8 +943,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-e3q-S9280ZCS6DZF2-kdp",
-        "size": 4387848,
-        "sha256": "b7cca1e2e3bf9b0e2cb2ec3de1ef9a97a1cdd6f04ceab6fa233928c08e71307c",
+        "size": 4387176,
+        "sha256": "9eaa4f8146a39baa35b95fff22c4f76a756520485b976482ef5801e06ca84a6b",
         "version": "4.2.0-rc3"
       }
     },
@@ -959,14 +959,14 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-pa3q-S938USQSCCZF9-kdp",
-        "size": 5098360,
-        "sha256": "07e4dc072246bba822fe6587724e51c36660341065789d33a20fe2de78e5793b",
+        "size": 5088072,
+        "sha256": "c659b20254d09709d4bda053bb41f3d283bb0610001f00294ae015605178ef9e",
         "version": "3.3.0"
       }
     },
     {
-      "payloadId": "pa3q-S938USQSCCZF9-ksun340",
-      "displayName": "Galaxy S25 Ultra | KernelSU-Next 3.4.0 (test)",
+      "payloadId": "pa3q-S938USQSCCZF9-ksun341",
+      "displayName": "Galaxy S25 Ultra | KernelSU-Next 3.4.1 (test)",
       "models": ["SM-S938U1"],
       "kernelVersions": ["6.6.98"],
       "flavor": "kernelsu-next",
@@ -976,9 +976,9 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-pa3q-S938USQSCCZF9-kdp",
-        "size": 4230864,
-        "sha256": "b836c51ec16fb06f408261d8d2d4b35a706b89b312f893e93411bcba24e13753",
-        "version": "3.4.0"
+        "size": 4253440,
+        "sha256": "66e8361593e01d2d57bb249ed054053b1706fe6a4edaa7351de99c10728cf47c",
+        "version": "3.4.1"
       }
     },
     {
@@ -997,8 +997,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-pa3q-S938USQSCCZF9-kdp",
-        "size": 4367112,
-        "sha256": "8c59f4e9d09a00ae0f763e41c08d35a85cd99570d3565a1fe6cc99afa12625c5",
+        "size": 4366440,
+        "sha256": "0c1977e817fe24bcf862014578f6a2d286f9f84d46a57a43b7076c6f071f0312",
         "version": "4.2.0-rc3"
       }
     }
