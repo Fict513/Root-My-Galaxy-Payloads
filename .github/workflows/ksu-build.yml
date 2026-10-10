@@ -153,7 +153,10 @@ env:
   # the repository, the patch, the artifact names and the build flags all follow the flavour rather
   # than being fixed. They are looked up in one map each - a nested ternary per value was already at
   # the edge of readable with two flavours, and a fourth would be a place to make a mistake.
-  FLAVOR_REPO: ${{ fromJSON('{"kernelsu":"tiann/KernelSU","kernelsu-next":"KernelSU-Next/KernelSU-Next","resukisu":"ReSukiSU/ReSukiSU"}')[inputs.flavor || 'kernelsu'] }}
+  # `resukisu` is this project's flavour id and stays; the project behind it renamed itself to BakaSU and
+  # moved to `Baka-SU/BakaSU`. The old name redirects, so a pinned ref keeps working either way - the
+  # canonical one is used here because that is what the upstream itself answers to now.
+  FLAVOR_REPO: ${{ fromJSON('{"kernelsu":"tiann/KernelSU","kernelsu-next":"KernelSU-Next/KernelSU-Next","resukisu":"Baka-SU/BakaSU"}')[inputs.flavor || 'kernelsu'] }}
   FLAVOR_PATCH: ${{ fromJSON('{"kernelsu":"KernelSU","kernelsu-next":"KernelSU-Next","resukisu":"ReSukiSU"}')[inputs.flavor || 'kernelsu'] }}
   # Distinguishes the files this flavour publishes from the others', so all three can be served for
   # one target without any clobbering another. The kernel half is always embedded by its daemon as

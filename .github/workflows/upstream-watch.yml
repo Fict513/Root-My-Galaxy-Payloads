@@ -98,7 +98,7 @@ jobs:
             case "$1" in
               kernelsu) echo tiann/KernelSU ;;
               kernelsu-next) echo KernelSU-Next/KernelSU-Next ;;
-              resukisu) echo ReSukiSU/ReSukiSU ;;
+              resukisu) echo Baka-SU/BakaSU ;;
             esac
           }
           flavour_name() {

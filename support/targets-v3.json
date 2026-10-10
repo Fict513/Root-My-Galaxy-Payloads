@@ -85,7 +85,7 @@
     },
     {
       "payloadId": "pa2q-S9360ZCSCCZG1-rsksu420",
-      "displayName": "Galaxy S25+ | Kernel 6.6.98 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S25+ | Kernel 6.6.98 | BakaSU 4.2.0-rc3 (test)",
       "models": [
         "SM-S9360"
       ],
@@ -122,7 +122,7 @@
     },
     {
       "payloadId": "psq-S9370ZCS9CZG1-rsksu420",
-      "displayName": "Galaxy S25 Edge | Kernel 6.6.98 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S25 Edge | Kernel 6.6.98 | BakaSU 4.2.0-rc3 (test)",
       "models": [
         "SM-S9370"
       ],
@@ -218,7 +218,7 @@
     },
     {
       "payloadId": "e3q-S928USQS6DZF2-rsksu420",
-      "displayName": "Galaxy S24 Ultra | Kernel 6.1.145 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24 Ultra | Kernel 6.1.145 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S928U1", "SM-S928W"],
       "kernelVersions": ["6.1.145"],
       "flavor": "resukisu",
@@ -272,7 +272,7 @@
     },
     {
       "payloadId": "e3q-S928BXXS6DZF2-rsksu420",
-      "displayName": "Galaxy S24 Ultra (International) | Kernel 6.1.145 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24 Ultra (International) | Kernel 6.1.145 | BakaSU 4.2.0-rc3 (test)",
       "models": [
         "SM-S928B"
       ],
@@ -331,7 +331,7 @@
     },
     {
       "payloadId": "e2s-S926BXXUEDZDR-rsksu420",
-      "displayName": "Galaxy S24+ | Kernel 6.1.157 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24+ | Kernel 6.1.157 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S926B"],
       "kernelVersions": ["6.1.157"],
       "flavor": "resukisu",
@@ -384,7 +384,7 @@
     },
     {
       "payloadId": "e1s-S921BXXSFDZE1-rsksu420",
-      "displayName": "Galaxy S24 | Kernel 6.1.157 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24 | Kernel 6.1.157 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S921B"],
       "kernelVersions": ["6.1.157"],
       "flavor": "resukisu",
@@ -453,7 +453,7 @@
     },
     {
       "payloadId": "essi-A566EXXSCCZG6-rsksu420",
-      "displayName": "Galaxy A56 5G | Kernel 6.6.102 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy A56 5G | Kernel 6.6.102 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-A5660", "SM-A566B", "SM-A566E", "SM-A566S", "SM-A566U1", "SM-A566W"],
       "kernelVersions": ["6.6.102"],
       "flavor": "resukisu",
@@ -503,7 +503,7 @@
     },
     {
       "payloadId": "a36xq-A366WVLS3AYG1-rsksu420",
-      "displayName": "Galaxy A36 5G | Kernel 6.6.46 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy A36 5G | Kernel 6.6.46 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-A366W"],
       "kernelVersions": ["6.6.46"],
       "flavor": "resukisu",
@@ -537,7 +537,7 @@
     },
     {
       "payloadId": "dm3q-S918BXXSAFZF5-rsksu420",
-      "displayName": "Galaxy S23 Ultra SM-S918B | Kernel 5.15.189 (S918BXXSAFZF5) | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S23 Ultra SM-S918B | Kernel 5.15.189 (S918BXXSAFZF5) | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S918B"],
       "kernelVersions": ["5.15.189"],
       "flavor": "resukisu",
@@ -590,7 +590,7 @@
     },
     {
       "payloadId": "a53x-A536EXXSNGZG3-rsksu420",
-      "displayName": "Galaxy A53 5G | Kernel 5.10.237 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy A53 5G | Kernel 5.10.237 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-A536E"],
       "kernelVersions": ["5.10.237"],
       "flavor": "resukisu",
@@ -642,7 +642,7 @@
     },
     {
       "payloadId": "dm3q-S9180ZHS8FZF5-rsksu420",
-      "displayName": "Galaxy S23 Ultra | Kernel 5.15.189 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S23 Ultra | Kernel 5.15.189 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S9180", "SM-S918N", "SM-S918Q", "SM-S918U", "SM-S918W", "SM-S918U1"],
       "kernelVersions": ["5.15.189"],
       "flavor": "resukisu",
@@ -693,7 +693,7 @@
     },
     {
       "payloadId": "e1s-S921NKSSFDZF3-rsksu420",
-      "displayName": "Galaxy S24 | Kernel 6.1.157 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24 | Kernel 6.1.157 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S921N"],
       "kernelVersions": ["6.1.157"],
       "flavor": "resukisu",
@@ -745,7 +745,7 @@
     },
     {
       "payloadId": "dm1q-S911U1UES6DYI3-rsksu420",
-      "displayName": "Galaxy S23 (base) | Kernel 5.15.153 | tracefs/MCAST route | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S23 (base) | Kernel 5.15.153 | tracefs/MCAST route | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S911U1"],
       "kernelVersions": ["5.15.153"],
       "flavor": "resukisu",
@@ -796,7 +796,7 @@
     },
     {
       "payloadId": "r12s-S721BXXSCDZF3-rsksu420",
-      "displayName": "Galaxy S24 FE | Kernel 6.1.157 | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24 FE | Kernel 6.1.157 | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S721B"],
       "kernelVersions": ["6.1.157"],
       "flavor": "resukisu",
@@ -853,7 +853,7 @@
     },
     {
       "payloadId": "gts9-X710XXS6EZF1-rsksu420",
-      "displayName": "Galaxy Tab S9 SM-X710 | Kernel 5.15.189 (X710XXS6EZF1) | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy Tab S9 SM-X710 | Kernel 5.15.189 (X710XXS6EZF1) | BakaSU 4.2.0-rc3 (test)",
       "models": [
         "SM-X710"
       ],
@@ -932,7 +932,7 @@
     },
     {
       "payloadId": "e3q-S9280ZCS6DZF2-rsksu420",
-      "displayName": "Galaxy S24 Ultra China | Kernel 6.1.145 (S9280ZCS6DZF2) | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S24 Ultra China | Kernel 6.1.145 (S9280ZCS6DZF2) | BakaSU 4.2.0-rc3 (test)",
       "models": ["SM-S9280"],
       "kernelVersions": ["6.1.145"],
       "flavor": "resukisu",
@@ -983,7 +983,7 @@
     },
     {
       "payloadId": "pa3q-S938USQSCCZF9-rsksu420",
-      "displayName": "Galaxy S25 Ultra | ReSukiSU 4.2.0-rc3 (test)",
+      "displayName": "Galaxy S25 Ultra | BakaSU 4.2.0-rc3 (test)",
       "models": [
         "SM-S938U1"
       ],
