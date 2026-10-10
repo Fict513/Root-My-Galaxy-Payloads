@@ -429,8 +429,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A566EXXSCCZG6-kdp",
-        "size": 5098360,
-        "sha256": "48379089daf060814dd4103412650f7c630bd215573bd87954c70fc4d1a531cb",
+        "size": 5088200,
+        "sha256": "5f305d26e1d1dc08cf480757945484ae0cd139bb035af2cbb8bbbb09383accd0",
         "version": "3.3.0"
       }
     },
@@ -463,8 +463,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-A566EXXSCCZG6-kdp",
-        "size": 4367112,
-        "sha256": "df46012e0d0888009478825b07ac3eda73e07035378344a1ec5fde2cab26580c",
+        "size": 4366568,
+        "sha256": "7a09d4dfe72f7c7254ead576952d50ae73e59d3b08aba8dbc8501eba7280b8d5",
         "version": "4.2.0-rc3"
       }
     },
@@ -479,8 +479,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A366WVLS3AYG1-kdp",
-        "size": 5098360,
-        "sha256": "e66d45979290a4c0fe30f5300263a52a326bd090b695877a85406674eb5d95d7",
+        "size": 5088200,
+        "sha256": "6a14b3336b7d2d0c84acbaa9193e2e47bbaf520eeece35f964b768c9da03aa4b",
         "version": "3.3.0"
       }
     },
@@ -513,8 +513,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-A366WVLS3AYG1-kdp",
-        "size": 4367112,
-        "sha256": "10c2a651a73085656b14f8f5c71b2b912f90968239d7fd8428c6486fae45095b",
+        "size": 4366568,
+        "sha256": "8daa9f7508c9e671f86b6abbb7925d29f8dda09161462fabc2af696cd79c43ce",
         "version": "4.2.0-rc3"
       }
     },
@@ -583,8 +583,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-A536EXXSNGZG3-kdp",
-        "size": 5102792,
-        "sha256": "775512219c76c667c681662d707daeaed348dff7b09d7a661b270a316c17385b",
+        "size": 5092552,
+        "sha256": "f655ef7a072e38fb6b45d35a9c7643bc87fe29eda7c1dbdaa5e048ed4dcee0f9",
         "version": "3.3.0"
       }
     },
@@ -601,8 +601,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-rsksu-A536EXXSNGZG3-kdp",
-        "size": 4370440,
-        "sha256": "930f9be830bfce016affa63ad4d0ffbd87098bdefa5a47c0df968eaea639d135",
+        "size": 4369768,
+        "sha256": "ddd8cc30d91727985c6ab628cf17b9422dc28276d40a02936d5a287615147b44",
         "version": "4.2.0-rc3"
       }
     },
@@ -738,8 +738,8 @@
       },
       "kernelsu": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm1q-S911U1UES6DYI3-kdp",
-        "size": 5115640,
-        "sha256": "43ce20aaa4955d5df6150aec88af1548806d8178cdf4d475f4caab205c77d056",
+        "size": 5105552,
+        "sha256": "4e0a50d19f32028d2919d927a10529b06b1109ed6c14892f45e7ad8d2e00313f",
         "version": "3.3.0"
       }
     },
