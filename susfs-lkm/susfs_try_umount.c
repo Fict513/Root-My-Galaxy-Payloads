@@ -131,9 +131,14 @@ static void try_umount_one(const char *mnt, int mnt_mode)
 		return;
 	}
 
+	/* No path_put() after this call, and that is not an oversight.  path_umount() consumes the
+	 * caller's reference on every path it takes once past its own mount-root check - which this
+	 * function has already done - so dropping it again is a double put: the phone's dmesg showed
+	 * exactly that, a WARN in mntput_no_expire called from path_put in this function.  KernelSU-Next's
+	 * own try_umount() puts only on the not-a-mount-root path above and never here, which is what this
+	 * now matches. */
 	err = do_path_umount(&path, mnt_mode == 1 ? MNT_DETACH : 0);
 	SUSFS_LOGI("try_umount: '%s' unmounted, err %d\n", mnt, err);
-	path_put(&path);
 }
 
 /*

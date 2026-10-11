@@ -345,6 +345,12 @@ jobs:
             echo "::error::the layer is not registered, so its init never runs"; exit 1; }
           grep -q "susfs_try_umount.o" KernelSU/kernel/Kbuild || {
             echo "::error::the new object is not in the Kbuild list"; exit 1; }
+          # Exactly one path_put, on the not-a-mount-root path.  A second one is the double put the
+          # phone caught as a WARN in mntput_no_expire called from this file's path_put, because
+          # path_umount() consumes the caller's reference.
+          puts=$(grep -c 'path_put(&path)' KernelSU/kernel/susfs/susfs_try_umount.c)
+          [ "$puts" = "1" ] || {
+            echo "::error::susfs_try_umount.c holds $puts path_put calls, expected exactly 1"; exit 1; }
 
       - name: Build
         run: |
