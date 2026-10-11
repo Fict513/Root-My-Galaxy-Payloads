@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "inforcqb/susfs4ksu-lkm",
+    "license": "GPL-2.0-only",
+    "ref": "ce5c3403acfb294bcbaaf5467e2f10adab7405b4",
+    "version": "2.3.0-gki"
+  },
+  "loader": {
+    "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_insmod",
+    "size": 32800,
+    "sha256": "2c23e2259d5ad4d324add01caa6e0d9a03d0e34ee7f112237176568d12630608"
+  },
+  "modules": [
+    {
+      "kmi": "android12-5.10",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android12-5.10.ko",
+      "size": 502136,
+      "sha256": "adfd13912b940869b5cf2293bde59a542b493e0c2a24f5afe8ed12a37c225896"
+    },
+    {
+      "kmi": "android13-5.10",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android13-5.10.ko",
+      "size": 511112,
+      "sha256": "491b0eeaa0e012998af385a011a4ba22f64772a0918d72d91a99968501eb65c5"
+    },
+    {
+      "kmi": "android13-5.15",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android13-5.15.ko",
+      "size": 518128,
+      "sha256": "13b3d7de43457e636304d0113813d368fe59e1928e30716f43f0336bec6769af"
+    },
+    {
+      "kmi": "android14-5.15",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android14-5.15.ko",
+      "size": 695880,
+      "sha256": "e27dd3961f9bacbf710be2b58319fb2aaf5e7605913df06743b7cbf68cd38acd"
+    },
+    {
+      "kmi": "android14-6.1",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android14-6.1.ko",
+      "size": 556968,
+      "sha256": "cac53066ca3b9a80423ec9f686091ce7b1288d84d2c573ccaf35b5a5098fd8f7"
+    },
+    {
+      "kmi": "android15-6.6",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android15-6.6.ko",
+      "size": 388272,
+      "sha256": "f8bb2276a209eed14abb6546289646af36afb93945a2240818b098803545c740"
+    },
+    {
+      "kmi": "android16-6.12",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android16-6.12.ko",
+      "size": 447904,
+      "sha256": "3d0968fecbb5e4cabdd3d1c00f310c2f7ba2f506e4417bd590adedb8622bae8b"
+    },
+    {
+      "kmi": "android17-6.18",
+      "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/susfs_guard_lkm-android17-6.18.ko",
+      "size": 419304,
+      "sha256": "283ec2f04bf727358b64a1ccafa83c3e0bfdbc50e73241934b98e671b7124868"
+    }
+  ]
+}
