@@ -56,6 +56,11 @@ on:
         description: 'DDK image release'
         required: false
         default: '20260828'
+      publish:
+        description: 'Commit the merged daemon and support/kernelsu-generic-susfs.json'
+        required: false
+        type: boolean
+        default: false
   push:
     paths:
       - 'susfs-lkm/**'
@@ -464,3 +469,88 @@ jobs:
           name: ksud-susfs-${{ inputs.kmi || 'android15-6.6' }}
           path: KernelSU/**/aarch64-linux-android/release/ksud
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------
+  # The publish: the daemon into `kernelsu/`, and the entry that serves it.
+  #
+  # Its own feed, and that is the whole reason this job exists separately:
+  # `support/kernelsu-generic.json` carries **one entry per flavour**, so putting a susfs daemon in it
+  # would replace the plain `kernelsu-next` daemon for every phone on that KMI - silently turning a
+  # hiding build into the default. `support/kernelsu-generic-susfs.json` is a file of its own, in the
+  # *same* schema as that feed, so a client that can already read one can read this - which is what
+  # makes this usable from an app without a new parser.
+  #
+  # Nothing here loads anything: a publish is a commit, and a phone decides what it runs.
+  # ---------------------------------------------------------------------------------------------
+  publish:
+    name: publish susfs daemon
+    needs: daemon
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-kernelsu-susfs
+      cancel-in-progress: false
+    steps:
+      - name: Checkout payloads
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Collect the daemon
+        uses: actions/download-artifact@v7
+        with:
+          name: ksud-susfs-${{ inputs.kmi || 'android15-6.6' }}
+          path: daemon
+
+      - name: What is being published, checked before anything is written
+        run: |
+          set -eu
+          KMI="${{ inputs.kmi || 'android15-6.6' }}"
+          binary=$(find daemon -type f -name ksud | head -1)
+          test -n "$binary" || { echo "::error::no daemon in the artifact"; exit 1; }
+          cp "$binary" "kernelsu/ksud-next-generic-susfs-$KMI"
+          file "kernelsu/ksud-next-generic-susfs-$KMI"
+          # The one property the entry claims and the client relies on: this daemon carries the merged
+          # module, named for the KMI it was built for.
+          strings "kernelsu/ksud-next-generic-susfs-$KMI" | grep -q "${KMI}_kernelsu.ko" || {
+            echo "::error::the daemon does not name ${KMI}_kernelsu.ko"; exit 1; }
+          echo "daemon: $(stat -c %s "kernelsu/ksud-next-generic-susfs-$KMI") bytes"
+          echo "sha256: $(sha256sum "kernelsu/ksud-next-generic-susfs-$KMI" | cut -d' ' -f1)"
+
+      - name: Write the entry
+        run: |
+          set -eu
+          KMI="${{ inputs.kmi || 'android15-6.6' }}"
+          python3 - "$KMI" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+
+          kmi = sys.argv[1]
+          name = f"ksud-next-generic-susfs-{kmi}"
+          path = os.path.join("kernelsu", name)
+          size = os.path.getsize(path)
+          digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+          # Same shape as `kernelsu-generic.json`, so an existing reader works unchanged. `version` is
+          # the KernelSU release in the form the app compares a manager's own version against, taken from
+          # the tag this run built (`v3.4.1` -> `3.4.1`) rather than read back out of the binary.
+          version = os.environ["KSU_REF"].lstrip("vV")
+          entry = {
+              "flavor": "kernelsu-next",
+              "kmis": [kmi],
+              "daemon": {
+                  "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/" + name,
+                  "size": size,
+                  "sha256": digest,
+                  "version": version,
+              },
+              "susfs": True,
+          }
+          feed = {"schemaVersion": 1, "generic": [entry]}
+          with open("support/kernelsu-generic-susfs.json", "w", encoding="utf-8", newline="\n") as handle:
+              json.dump(feed, handle, indent=2, ensure_ascii=False)
+              handle.write("\n")
+          print(json.dumps(feed, indent=2))
+          PY
