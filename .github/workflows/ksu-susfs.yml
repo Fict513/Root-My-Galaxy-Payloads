@@ -124,31 +124,69 @@ jobs:
           fi
           ls KernelSU/kernel/susfs/ | head -40
 
-      - name: One module, one init
+      - name: One module, one init, and one exit
         run: |
           set -eu
-          # Their tree ships as its own module, so it has its own module_init(); a second one in this
-          # module is a compile error, and a `late_initcall` would run before KernelSU is up - and the
-          # umount gate asks KernelSU's predicate at load. So their init is called from KernelSU's own
-          # init instead, after the KernelSU half has armed.
+          # Their tree ships as its own module, so it has its own module_init()/module_exit(); a second
+          # pair in this module is a compile error, and a `late_initcall` would run before KernelSU is
+          # up - and the umount gate asks KernelSU's predicate at load.
+          #
+          # Both calls are wired into KernelSU's own paths, and the exit one is not a courtesy: their
+          # teardown is what unregisters the kprobes our hook layer installs, and a module unloaded with
+          # those still registered leaves the kernel with callbacks into freed memory - measured, as a
+          # reset. So an anchor that cannot be found is a hard failure here, with the file's own lines
+          # printed, rather than a merge that compiles and then kills the phone on `rmmod`.
           python3 - <<'PY'
-          import re, pathlib
+          import pathlib
+          import re
 
           main = pathlib.Path("KernelSU/kernel/susfs/susfs_main.c")
           text = main.read_text()
-          text2 = re.sub(r"^\s*module_init\(susfs_init\);\s*$", "", text, flags=re.M)
-          if text2 == text:
-              raise SystemExit("susfs_main.c: no module_init(susfs_init) to remove")
-          main.write_text(text2)
 
-          init = pathlib.Path("KernelSU/kernel/core/init.c")
-          text = init.read_text()
-          anchor = "static int __init kernelsu_init(void)\n{"
-          if anchor not in text:
-              raise SystemExit("init.c: kernelsu_init() shape changed; place the susfs_init() call by hand")
-          text = text.replace(anchor, anchor + "\n\textern int susfs_init(void);\n\t(void)susfs_init();", 1)
-          init.write_text(text)
-          print("susfs_init() is called from kernelsu_init()")
+          def lines_with(pattern):
+              return [line for line in text.splitlines() if re.search(pattern, line)]
+
+          init_call = re.search(r"^[ \t]*module_init\(([A-Za-z_]\w*)\);[ \t]*$", text, flags=re.M)
+          exit_call = re.search(r"^[ \t]*module_exit\(([A-Za-z_]\w*)\);[ \t]*$", text, flags=re.M)
+          if not init_call or not exit_call:
+              print("module_init/module_exit lines found in susfs_main.c:")
+              for line in lines_with(r"module_(init|exit)"):
+                  print("   ", line)
+              raise SystemExit("susfs_main.c: could not read both module_init() and module_exit()")
+          init_symbol, exit_symbol = init_call.group(1), exit_call.group(1)
+
+          for symbol in (init_symbol, exit_symbol):
+              # Called from another file now, and still living in the init/exit sections those callers
+              # live in. `__init`/`__exit` stay; `static` cannot.
+              pattern = r"static\s+(int|void)\s+__(init|exit)\s+" + symbol + r"\("
+              if not re.search(pattern, text):
+                  print("definitions found in susfs_main.c:")
+                  for line in lines_with(rf"\b{symbol}\b"):
+                      print("   ", line)
+                  raise SystemExit(f"susfs_main.c: no definition of {symbol}() to make visible")
+              text = re.sub(pattern, r"\1 __\2 " + symbol + "(", text)
+
+          text = re.sub(r"^[ \t]*module_(init|exit)\(\w+\);[ \t]*\n", "", text, flags=re.M)
+          main.write_text(text)
+          print(f"removed both module_ calls; this module calls {init_symbol}() and {exit_symbol}()")
+
+          wired = []
+          for path, anchor, decl, call in (
+              ("KernelSU/kernel/core/init.c", "static int __init kernelsu_init(void)\n{", f"extern int {init_symbol}(void);", f"(void){init_symbol}();"),
+              ("KernelSU/kernel/core/init.c", "static void __exit kernelsu_exit(void)\n{", f"extern void {exit_symbol}(void);", f"(void){exit_symbol}();"),
+          ):
+              target = pathlib.Path(path)
+              body = target.read_text()
+              if anchor not in body:
+                  print(f"candidates in {path}:")
+                  for line in body.splitlines():
+                      if "kernelsu_init" in line or "kernelsu_exit" in line:
+                          print("   ", line)
+                  raise SystemExit(f"{path}: the anchor for {call} moved")
+              body = body.replace(anchor, anchor + f"\n\t{decl}\n\t{call}", 1)
+              target.write_text(body)
+              wired.append(call)
+          print("wired: " + ", ".join(wired))
           PY
 
       - name: Objects into Kbuild
