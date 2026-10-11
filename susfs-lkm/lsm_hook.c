@@ -230,8 +230,48 @@ static bool lsm_off;
 module_param(lsm_off, bool, 0644);
 MODULE_PARM_DESC(lsm_off, "install no probes at all (diagnostic)");
 
+/*
+ * Members this layer must not probe, comma separated: `lsm_skip=inode_permission`.
+ *
+ * Measured on an SM-S938U1: with `lsm_max=1` the module refuses cleanly, and with `lsm_max=2` the phone
+ * reboots - so a kretprobe on `selinux_inode_permission` is fatal on this kernel while one on
+ * `selinux_inode_getattr` is not. A skipped member registers *successfully* and installs nothing, which
+ * is the difference between a module that loads with one feature unarmed and one that refuses to load
+ * at all. It is logged as loudly as it deserves: the features gated on that hook stay off.
+ */
+static char lsm_skip[128] = "";
+module_param_string(lsm_skip, lsm_skip, sizeof(lsm_skip), 0644);
+MODULE_PARM_DESC(lsm_skip, "comma-separated members not to probe, e.g. inode_permission");
+
 /* Incremented as probes are installed, so the prefix above is the order the caller registers in. */
 static int susfs_installed;
+
+/* Whether `member` is named in `lsm_skip`. Whole names only: `inode_getattr` must not be matched by an
+ * entry for `getattr`, and a prefix match would skip a hook nobody asked to skip. */
+static bool susfs_skip_named(const char *member)
+{
+	const char *cursor = lsm_skip;
+	size_t length;
+
+	if (!member || !lsm_skip[0])
+		return false;
+	length = strlen(member);
+	while (*cursor) {
+		const char *end = strchrnul(cursor, ',');
+		size_t span = (size_t)(end - cursor);
+
+		while (span && (*cursor == ' ' || *cursor == '\t')) {
+			cursor++;
+			span--;
+		}
+		while (span && (cursor[span - 1] == ' ' || cursor[span - 1] == '\t'))
+			span--;
+		if (span == length && !strncmp(cursor, member, length))
+			return true;
+		cursor = *end ? end + 1 : end;
+	}
+	return false;
+}
 
 #ifdef __aarch64__
 static struct susfs_install *susfs_install_for(const char *member)
@@ -257,6 +297,15 @@ int ksu_register_lsm_hook(struct ksu_lsm_hook *hook)
 
 	/* A swap needs the read-only write this file exists to avoid, so it is refused with its reason
 	 * rather than installed and left doing nothing. */
+	/* A member this kernel cannot carry a probe for: registered, installed, and said out loud. The
+	 * caller's hook then does nothing, which is a degradation the log names rather than a feature that
+	 * quietly never runs. */
+	if (susfs_skip_named(hook->head_name)) {
+		SUSFS_LOGI("lsm_hook: %s: skipped by lsm_skip - this hook is not armed and the features it gates "
+			   "stay off\n", hook->head_name ?: "unknown");
+		return 0;
+	}
+
 	/* The bisect: a refusal is something sus_path reports and the module acts on, where a panic is a
 	 * reboot with no evidence - so a bounded run has to stop *before* the probe that would crash. */
 	if (lsm_off || (lsm_max >= 0 && susfs_installed >= lsm_max)) {
