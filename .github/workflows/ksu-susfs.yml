@@ -172,8 +172,11 @@ jobs:
 
           wired = []
           for path, anchor, decl, call in (
-              ("KernelSU/kernel/core/init.c", "static int __init kernelsu_init(void)\n{", f"extern int {init_symbol}(void);", f"(void){init_symbol}();"),
-              ("KernelSU/kernel/core/init.c", "static void __exit kernelsu_exit(void)\n{", f"extern void {exit_symbol}(void);", f"(void){exit_symbol}();"),
+              # KernelSU's own init and exit are not `static` at this tag - measured by the run that
+              # failed here, which printed them: `int __init kernelsu_init(void)` and
+              # `void __exit kernelsu_exit(void)` (plus a naked `kernelsu_init_early`).
+              ("KernelSU/kernel/core/init.c", "int __init kernelsu_init(void)\n{", f"extern int {init_symbol}(void);", f"(void){init_symbol}();"),
+              ("KernelSU/kernel/core/init.c", "void __exit kernelsu_exit(void)\n{", f"extern void {exit_symbol}(void);", f"(void){exit_symbol}();"),
           ):
               target = pathlib.Path(path)
               body = target.read_text()
