@@ -308,10 +308,15 @@ jobs:
 
           refs = json.loads(os.environ["SUSFS_REFS"])
           versions = json.loads(os.environ["SUSFS_VERSIONS"])
+          # Cleared once per variant this run built, *before* anything is placed: doing it inside the
+          # loop below would clear the directory again for every KMI of the same variant, wiping the
+          # module the previous artifact had just been copied into.
+          built = sorted({item.name.split("-")[2] for item in pathlib.Path("artifacts").glob("susfs-lkm-*")})
+          for variant in built:
+              shutil.rmtree(pathlib.Path("susfs") / variant, ignore_errors=True)
+
           records = {}
           for directory in sorted(pathlib.Path("artifacts").glob("susfs-lkm-*")):
-              # Cleared here, per built variant, rather than with one `rm -rf` over the others.
-              shutil.rmtree(pathlib.Path("susfs") / directory.name.split("-")[2], ignore_errors=True)
               parts = directory.name.split("-")          # susfs-lkm-<variant>-<kmi...>
               variant = parts[2]
               modules = sorted(directory.glob("susfs_guard_lkm-*.ko"))
