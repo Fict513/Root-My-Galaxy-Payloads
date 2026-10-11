@@ -111,12 +111,13 @@ env:
   # build and against the binary after it. Null for the legacy line, which carries none: an entry that
   # named a release its binary cannot print would be a claim no reader could check.
   SUSFS_VERSIONS: '{"stable":"2.3.0-gki","preview":"2.3.0-gki","legacy":null,"samsung":"2.3.0-gki"}'
-  # The loader, pinned by where it is fetched from and what it must hash to. Not built here: it is a
-  # userspace program from the same project, and the only thing this repository has to promise about
-  # it is that the bytes published are the bytes checked. The two release assets upstream ships
-  # (stable and preview) are byte-identical, and this is that digest.
-  LOADER_URL: https://github.com/inforcqb/susfs4ksu-lkm/releases/download/v2.3.0-r18-dev-44c7672/susfs_insmod
-  LOADER_SHA256: 2c23e2259d5ad4d324add01caa6e0d9a03d0e34ee7f112237176568d12630608
+  # The loader is not built here and no longer **pinned** here either. It used to be a release URL and a
+  # digest in this file, and that was the last frozen hash in the tier - the reason the first
+  # branch-following publish failed, with `sha256sum: 1 computed checksum did NOT match`: upstream's
+  # asset had moved and our copy of its digest had not. What replaces it is a resolution and a record:
+  # the step below takes the asset from upstream's newest release, refuses anything that is not the
+  # loader, and the digest that gets published is computed from the bytes it actually downloaded.
+  LOADER_ASSET: susfs_insmod
   URL_PREFIX: ${{ inputs.url_prefix || 'https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main' }}
 
 jobs:
@@ -392,13 +393,41 @@ jobs:
           PY
           find susfs -name '*.ko' | sort
 
-      - name: The loader, pinned by digest
+      - name: The loader, resolved from upstream's newest release
         run: |
-          # Fetched rather than built, and refused unless it hashes to what this workflow pins: the
-          # only claim this repository makes about the loader is that the bytes published are the
-          # bytes verified here.
-          curl -sSLo susfs/susfs_insmod "$LOADER_URL"
-          echo "$LOADER_SHA256  susfs/susfs_insmod" | sha256sum -c -
+          set -eu
+          # Resolved, not pinned. Upstream tags a release per build and the asset moves with it, so a
+          # fixed URL and digest rot the moment they publish again - which is exactly what happened, and
+          # why this step exists in this shape.
+          #
+          # `releases?per_page=1` rather than `releases/latest`: upstream's newest is a *prerelease* (its
+          # dev line), and `latest` excludes those, so it would hand back an older asset.
+          url=$(curl -sSL "https://api.github.com/repos/$SUSFS_REPO/releases?per_page=1" \
+            | python3 -c "
+          import json, sys
+          releases = json.load(sys.stdin)
+          if not releases:
+              raise SystemExit('upstream publishes no release at all')
+          release = releases[0]
+          asset = next((a for a in release['assets'] if a['name'] == sys.argv[1]), None)
+          if not asset:
+              raise SystemExit(f\"release {release['tag_name']} carries no {sys.argv[1]} asset\")
+          print(asset['browser_download_url'], file=sys.stderr)
+          print(release['tag_name'], asset['size'], asset['browser_download_url'])
+          " "$LOADER_ASSET" 2>/dev/null)
+          tag=$(echo "$url" | cut -d' ' -f1)
+          size=$(echo "$url" | cut -d' ' -f2)
+          asset_url=$(echo "$url" | cut -d' ' -f3)
+          echo "loader: $tag -> $asset_url ($size bytes)"
+          curl -sSLo susfs/susfs_insmod "$asset_url"
+          actual=$(stat -c %s susfs/susfs_insmod)
+          [ "$actual" = "$size" ] || {
+            echo "::error::the loader downloaded is $actual bytes, the release declares $size"; exit 1; }
+          # The one property this file has to have, taken from the binary rather than from its name: it
+          # is the program that resolves the module's unexported symbols out of /proc/kallsyms.
+          grep -qa kallsyms susfs/susfs_insmod || {
+            echo "::error::the asset is not the loader: it does not mention kallsyms"; exit 1; }
+          echo "sha256: $(sha256sum susfs/susfs_insmod | cut -d' ' -f1) (computed here, recorded in the feed)"
           ls -l susfs/
 
       - name: Write the feed
