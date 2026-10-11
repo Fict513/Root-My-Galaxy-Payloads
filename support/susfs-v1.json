@@ -171,38 +171,38 @@
         {
           "kmi": "android12-5.10",
           "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/samsung/susfs_guard_lkm-android12-5.10.ko",
-          "size": 481744,
-          "sha256": "af89f296810a5a4c6a2cd4ca337b106f9a24136c4f18f4e4d256442566207892"
+          "size": 474064,
+          "sha256": "f714e8b515691974d5169190af823ee216b0bea2556280d17a8571184ac5c14f"
         },
         {
           "kmi": "android13-5.10",
           "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/samsung/susfs_guard_lkm-android13-5.10.ko",
-          "size": 481208,
-          "sha256": "6a63a762d8611903cb06e18ebd65908ee15d0161742555d5c00299d0231e14e4"
+          "size": 472152,
+          "sha256": "59d2a4a60341f4974da7461d148d6f29cafda6bb5bf3163cedcd86b7db34620f"
         },
         {
           "kmi": "android13-5.15",
           "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/samsung/susfs_guard_lkm-android13-5.15.ko",
-          "size": 493512,
-          "sha256": "3fb55bfe83fefd70c4efee088e661bb108b65728eabe19697dce1ad2363355b3"
+          "size": 482584,
+          "sha256": "0ac25b17dc354374e910e5b7eacd8aa0c0e2d65fa80a9ecff356ce37d1f4b161"
         },
         {
           "kmi": "android14-5.15",
           "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/samsung/susfs_guard_lkm-android14-5.15.ko",
-          "size": 630704,
-          "sha256": "2312bc91d46950996d89248a23852e2d9c4aa8a49fe3741c03ecf0cf41f888cf"
+          "size": 617272,
+          "sha256": "9862bec2e2669a3f568933e8364ae5665889a7ebe511d4b1db18f5d4911d5f04"
         },
         {
           "kmi": "android14-6.1",
           "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/samsung/susfs_guard_lkm-android14-6.1.ko",
-          "size": 511208,
-          "sha256": "397f735a831687400479bc6854c227043907bb5c47a64fa72da732fc2d323c87"
+          "size": 503112,
+          "sha256": "9f3e417c9a306aed6feba9bba6172f8d119339ba5cb6dfa33c193125a245e2bb"
         },
         {
           "kmi": "android15-6.6",
           "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/susfs/samsung/susfs_guard_lkm-android15-6.6.ko",
-          "size": 377368,
-          "sha256": "c0c742dbc51d0063568635dfcf29b211dd434869dcfdda1478ac01f2c115b4ba"
+          "size": 369912,
+          "sha256": "01973cc1ab70509b15384ca2234c21083d6f1b211dc0a4513319204b9da754fc"
         }
       ]
     }
