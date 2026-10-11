@@ -210,20 +210,23 @@ void susfs_try_umount_supercall(void __user **arg, void __user *err_ptr)
 	err = add_try_umount(info.target_pathname, info.mnt_mode);
 
 out:
-	if (err_ptr) {
-		/* Upstream's shape, and the one the shipped helper reads. */
-		if (copy_to_user(err_ptr, &err, sizeof(err)))
-			pr_warn("try_umount supercall copy_to_user(err_ptr) failed\n");
-		return;
-	}
-
-	/* No fifth argument: the caller used this tree's older id (0x55580), and its error field lives in
-	 * its own struct.  Not writing it there is what the phone caught - the shipped helper pre-seeds
-	 * that field with 126 ("the kernel never handled this") and reads the answer back from it, so a
-	 * silent kernel reports the feature as unsupported even when the rule was added. */
+	/* Both channels, deliberately.  The caller's layout is not knowable from here: the shipped helper
+	 * sends our fork's id (0x55580) and pre-seeds an `err` field in the object it passed, while
+	 * upstream's shape answers in the command's fifth argument.  The phone caught the cost of
+	 * choosing one - a helper that reads the field we did not write reports the feature unsupported
+	 * even when the rule was added - so upstream's own habit of writing both is what this does.
+	 *
+	 * The struct write is safe because the caller passed that object.  The pointer write is guarded by
+	 * access_ok, again as upstream guards it, and the whole supercall is root-only (reboot_pre returns
+	 * early for any other uid), so an argument register that was never an error pointer cannot be
+	 * used to write into a kernel address. */
 	if (copy_to_user(&((struct st_susfs_try_umount_reply __user *)*arg)->err, &err, sizeof(err)))
 		pr_warn("try_umount supercall: copy_to_user(struct err) failed, err %d lost\n", err);
-}
+
+	if (err_ptr && access_ok(err_ptr, sizeof(err))) {
+		if (copy_to_user(err_ptr, &err, sizeof(err)))
+			pr_warn("try_umount supercall: copy_to_user(err_ptr) failed, err %d lost\n", err);
+	}
 
 int susfs_try_umount_init(void)
 {

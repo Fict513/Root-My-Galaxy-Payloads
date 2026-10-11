@@ -144,14 +144,14 @@ def wire_supercall():
         "capture the fifth argument in reboot_pre",
     )
 
-    # 3. the dispatch.  Upstream's id gets the error pointer; ours (deprecated) never does, so a
-    #    caller that used it cannot have four bytes written into an address it never passed.
+    # 3. the dispatch.  Both ids pass the fifth argument through; the layer writes the answer into the
+    #    caller's struct and, when that pointer passes access_ok, there as well.  Measured: the shipped
+    #    helper sends our deprecated id, so assuming only upstream's id needed the pointer left it
+    #    reading its own pre-seeded "not supported" sentinel.
     dispatch = (
         "\tcase SUSFS_CMD_ADD_TRY_UMOUNT_UPSTREAM:\n"
-        "\t\tsusfs_try_umount_supercall(&arg, tw->err_ptr);\n"
-        "\t\tbreak;\n"
         "\tcase CMD_SUSFS_ADD_TRY_UMOUNT:\n"
-        "\t\tsusfs_try_umount_supercall(&arg, NULL);\n"
+        "\t\tsusfs_try_umount_supercall(&arg, tw->err_ptr);\n"
         "\t\tbreak;\n"
     )
     text = insert_before(
