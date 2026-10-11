@@ -111,19 +111,42 @@ jobs:
           # Their sources, minus three files:
           #
           #   lsm_hook.c        upstream's security_hook_heads install path; ours is the kprobe route
-          #   symbol_resolver.c the same code KernelSU already carries, and KernelSU's is the one with
-          #                     this project's Samsung work in it. The linker named the collision
-          #                     (`find_kernel_symbol_exact`, `ksu_resolve_symbol_for_functable_hook`,
-          #                     `scan_call_to`), and their callers bind to KernelSU's by dropping these.
-          #   patch_memory.c    likewise (`phys_from_virt`, `ksu_patch_text`), and this is the very code
-          #                     whose read-only write is what cannot land on these devices.
+          #   patch_memory.c    KernelSU's is the one with this project's Samsung work in it, and this is
+          #                     the very code whose read-only write cannot land on these devices
+          #                     (`phys_from_virt`, `ksu_patch_text`). Nothing here calls its exports.
+          #
+          # Their `symbol_resolver.c` is kept and renamed below instead: it carries two helpers the tree
+          # does not have, which a later run named (`ksu_find_symbol_all`, `ksu_kallsyms_lookup_name`).
           for f in susfs-src/kernel/*.c susfs-src/kernel/*.h; do
             case "$(basename "$f")" in
-              lsm_hook.c | symbol_resolver.c | patch_memory.c) continue ;;
+              lsm_hook.c | patch_memory.c) continue ;;
             esac
             cp "$f" KernelSU/kernel/susfs/
           done
           cp susfs-lkm/lsm_hook.c KernelSU/kernel/susfs/lsm_hook.c
+
+          # `symbol_resolver.c` stays, because two of its exports exist nowhere else - the previous run's
+          # symbol check named them (`ksu_find_symbol_all`, `ksu_kallsyms_lookup_name`). What it must not
+          # keep are the five names KernelSU also defines: those are the same functions twice, and the
+          # tree's copies are the ones with this project's Samsung work in them. Renaming their side
+          # moves both the definitions and their callers together, so no susfs source reaches across.
+          for pair in \
+            "find_kernel_symbol_exact:susfs_find_kernel_symbol_exact" \
+            "ksu_resolve_symbol_for_functable_hook:susfs_resolve_symbol_for_functable_hook" \
+            "ksu_init_symbol_resolver:susfs_init_symbol_resolver" \
+            "scan_call_to:susfs_scan_call_to" \
+          ; do
+            from="${pair%%:*}"; to="${pair##*:}"
+            sed -i "s/\\b${from}\\b/${to}/g" KernelSU/kernel/susfs/*.c KernelSU/kernel/susfs/*.h
+          done
+          # Checked, not assumed: a rename that missed a caller is an undefined symbol later, and a
+          # rename that leaked into KernelSU's own tree would change its behaviour instead.
+          if grep -rqE "\bksu_init_symbol_resolver\(" KernelSU/kernel/susfs; then
+            echo "::error::a susfs source still calls KernelSU's resolver initialiser"; exit 1
+          fi
+          if grep -rq "find_kernel_symbol_exact" KernelSU/kernel/core KernelSU/kernel/infra 2>/dev/null; then
+            echo "::error::the rename leaked into KernelSU's own sources"; exit 1
+          fi
 
           # Our layer's exported names, moved out of KernelSU's namespace. KernelSU-Next has its own
           # `ksu_lsm_hook()` family, used by its own features (our delta's `selinux_hide` patches
