@@ -208,11 +208,30 @@ jobs:
             echo "::error::no susfs sources were copied into KernelSU/kernel/susfs"
             exit 1
           fi
+          # `-I$(srctree)/fs` is upstream's own note, verbatim: "fs/mount.h (struct mount + real_mount)
+          # is a private header; its includes are all public, so -I$(srctree)/fs is enough to reach it
+          # via #include \"mount.h\"". Without it `sus_mount.c` stops at `fatal error: 'mount.h' file not
+          # found`, which is what the previous run reported.
+          #
+          # `KSU_NEW_DCACHE_FLUSH` is the other half of their own build: 5.14+ renamed
+          # `__flush_dcache_area`/`__flush_icache_range`, and their sources `#if` on this define to pick
+          # the spelling. Their Makefile greps the tree for the old name; left undefined it evaluates as
+          # 0, which selects the pre-5.14 spelling on a 6.6 kernel.
+          kernel_src="${KERNEL_SRC:-/opt/ddk/src/${{ inputs.kmi || 'android15-6.6' }}}"
+          if [ -f "$kernel_src/arch/arm64/include/asm/cacheflush.h" ] && \
+             grep -q "__flush_dcache_area" "$kernel_src/arch/arm64/include/asm/cacheflush.h"; then
+            flush=0
+          else
+            flush=1
+          fi
+          echo "kernel source: $kernel_src -> KSU_NEW_DCACHE_FLUSH=$flush"
           {
             echo ''
             echo '# SUSFS, merged: sources in kernel/susfs/, one init called from kernelsu_init().'
             echo "kernelsu-objs += $objects"
             echo 'ccflags-y += -I$(src)/kernel/susfs'
+            echo 'ccflags-y += -I$(srctree)/fs'
+            echo "ccflags-y += -DKSU_NEW_DCACHE_FLUSH=$flush"
           } >> "$kbuild"
           grep -q "kernelsu-objs += susfs/" "$kbuild" || { echo "::error::Kbuild append did not take"; exit 1; }
           tail -4 "$kbuild"
