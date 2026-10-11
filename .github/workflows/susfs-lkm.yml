@@ -209,7 +209,8 @@ jobs:
           # Checked rather than assumed: the build below reads whatever is in the tree, and the one
           # failure mode that would look like success is a copy that did not happen and an artifact
           # that is upstream's stable module with our name on it.
-          grep -q "kretprobe-based" susfs-src/kernel/lsm_hook.c || {
+          # The marker is the line `ksu_lsm_hook_init()` prints, which only this repository's file has.
+          grep -q "install path is kprobe-based" susfs-src/kernel/lsm_hook.c || {
             echo "::error::susfs-lkm/lsm_hook.c was not copied into the checkout"
             exit 1
           }
