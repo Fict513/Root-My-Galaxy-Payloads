@@ -1,0 +1,201 @@
+name: KernelSU + SUSFS
+
+# One module that is both the root and the hiding: our Samsung-patched KernelSU-Next with upstream
+# susfs's kernel sources compiled into it, and this repository's kprobe LSM layer where they would
+# otherwise install their own.
+#
+# ## Why this exists next to `susfs-lkm.yml`
+#
+# That workflow publishes susfs as a *companion*: a second module, loaded after root, with its own
+# copies of the parts our KernelSU module already has. This one fuses the two, so a phone that roots
+# with this payload has susfs without a second load - and so the two halves cannot disagree about the
+# techniques that only exist here:
+#
+#   - our `lsm_hook.c` (`susfs-lkm/lsm_hook.c`): a hook is installed by a `kprobe` on the SELinux
+#     implementation, in a `pre_handler`, with an instruction-pointer redirect and a `__nocfi`
+#     trampoline. Upstream inserts a `struct security_hook_list` into `security_hook_heads`, which is
+#     `__lsm_ro_after_init` here - measured: `-14` (`EFAULT`) on this project's devices.
+#   - a `kretprobe` with per-instance data was tried first and reset an SM-S938U1 whenever more than one
+#     probe was installed. The pre-handler shape above is what this project's own delta uses
+#     (`selinux_hide`), and it is the one that arms thirteen hooks and unloads cleanly.
+#   - `CONFIG_KSU_SAMSUNG_*` in our delta is the rest of the same story: no text patching where the
+#     hypervisor forbids it, kretprobes instead, and the KDP/DEFEX work.
+#
+# ## What this workflow does, in the order it matters
+#
+#   1. our patched KernelSU-Next at the tag the patch names, and the same Samsung config the pair job
+#      builds with;
+#   2. upstream susfs's `kernel/` sources at a pinned commit, copied into `KernelSU/kernel/susfs/`;
+#   3. **our** `lsm_hook.c` over theirs, and our sanity marker checked so a build cannot silently be
+#      upstream's install path with our name on it;
+#   4. their `module_init()` removed and their `susfs_init()` called from KernelSU's own init instead -
+#      one module has one init, and this is the merge's one structural edit;
+#   5. the objects appended to `KernelSU/kernel/Kbuild`, then the build, then `modinfo` and strings
+#      checks: KSU's own name present, `susfs_guard_lkm`'s absent (this is not that module), and the
+#      susfs entry points present.
+#
+# It is a build, not a publish: the artifacts land as workflow artifacts until the merge is known to
+# compile and load, which is the same order the companion tier was built in.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_ref:
+        description: 'KernelSU-Next tag to build (needs a matching kernelsu/patches patch)'
+        required: false
+        default: 'v3.4.1'
+      susfs_ref:
+        description: 'Upstream susfs commit to merge in'
+        required: false
+        default: '191339da5db5e9a45a4b011f9f7aa4174a760bae'
+      kmi:
+        description: 'KMI to build for'
+        required: false
+        default: 'android15-6.6'
+      ddk_release:
+        description: 'DDK image release'
+        required: false
+        default: '20260828'
+  push:
+    paths:
+      - 'susfs-lkm/**'
+      - '.github/workflows/ksu-susfs.yml'
+
+permissions:
+  contents: read
+
+env:
+  SUSFS_REPO: inforcqb/susfs4ksu-lkm
+  KSU_REF: ${{ inputs.ksu_ref || 'v3.4.1' }}
+  SUSFS_REF: ${{ inputs.susfs_ref || '191339da5db5e9a45a4b011f9f7aa4174a760bae' }}
+  PATCH: kernelsu/patches/KernelSU-Next-v3.4.1-samsung-kdp-rkp-defex.patch
+
+jobs:
+  build:
+    name: kernelsu+susfs (${{ inputs.kmi || 'android15-6.6' }})
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/ylarod/ddk-min:${{ inputs.kmi || 'android15-6.6' }}-${{ inputs.ddk_release || '20260828' }}
+      options: --privileged
+    steps:
+      - name: Checkout payloads
+        uses: actions/checkout@v7
+
+      - name: Checkout KernelSU-Next
+        uses: actions/checkout@v7
+        with:
+          repository: KernelSU-Next/KernelSU-Next
+          ref: ${{ env.KSU_REF }}
+          path: KernelSU
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Checkout upstream susfs
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SUSFS_REPO }}
+          ref: ${{ env.SUSFS_REF }}
+          path: susfs-src
+
+      - name: Apply our Samsung delta
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/KernelSU"
+          git -C KernelSU apply --verbose "$GITHUB_WORKSPACE/$PATCH"
+          python3 tools/check_rkp_branch.py --self-test
+          python3 tools/check_rkp_branch.py --tree KernelSU
+
+      - name: Merge their sources, with our hook layer
+        run: |
+          set -eu
+          mkdir -p KernelSU/kernel/susfs
+          # Everything of theirs except the file we own. Their `lsm_hook.c` is upstream's
+          # security_hook_heads install path; ours is the kprobe route that works on this kernel.
+          for f in susfs-src/kernel/*.c susfs-src/kernel/*.h; do
+            case "$(basename "$f")" in
+              lsm_hook.c) continue ;;
+            esac
+            cp "$f" KernelSU/kernel/susfs/
+          done
+          cp susfs-lkm/lsm_hook.c KernelSU/kernel/susfs/lsm_hook.c
+          grep -q "install path is kprobe-based" KernelSU/kernel/susfs/lsm_hook.c || {
+            echo "::error::our hook layer is not in the tree"; exit 1; }
+          if grep -q "ksu_lsm_hook_patch_slot" KernelSU/kernel/susfs/lsm_hook.c; then
+            echo "::error::the tree still holds upstream's read-only-memory install path"; exit 1
+          fi
+          ls KernelSU/kernel/susfs/ | head -40
+
+      - name: One module, one init
+        run: |
+          set -eu
+          # Their tree ships as its own module, so it has its own module_init(); a second one in this
+          # module is a compile error, and a `late_initcall` would run before KernelSU is up - and the
+          # umount gate asks KernelSU's predicate at load. So their init is called from KernelSU's own
+          # init instead, after the KernelSU half has armed.
+          python3 - <<'PY'
+          import re, pathlib
+
+          main = pathlib.Path("KernelSU/kernel/susfs/susfs_main.c")
+          text = main.read_text()
+          text2 = re.sub(r"^\s*module_init\(susfs_init\);\s*$", "", text, flags=re.M)
+          if text2 == text:
+              raise SystemExit("susfs_main.c: no module_init(susfs_init) to remove")
+          main.write_text(text2)
+
+          init = pathlib.Path("KernelSU/kernel/core/init.c")
+          text = init.read_text()
+          anchor = "static int __init kernelsu_init(void)\n{"
+          if anchor not in text:
+              raise SystemExit("init.c: kernelsu_init() shape changed; place the susfs_init() call by hand")
+          text = text.replace(anchor, anchor + "\n\textern int susfs_init(void);\n\t(void)susfs_init();", 1)
+          init.write_text(text)
+          print("susfs_init() is called from kernelsu_init()")
+          PY
+
+      - name: Objects into Kbuild
+        run: |
+          set -eu
+          kbuild=KernelSU/kernel/Kbuild
+          cp "$kbuild" /tmp/kbuild.before
+          {
+            echo ''
+            echo '# SUSFS, merged: sources in kernel/susfs/, one init called from kernelsu_init().'
+            echo 'susfs-objs := $(addprefix susfs/,$(patsubst %.c,%.o,$(notdir $(wildcard $(src)/kernel/susfs/*.c))))'
+            echo 'kernelsu-objs += $(susfs-objs)'
+            echo 'ccflags-y += -I$(src)/kernel/susfs'
+          } >> "$kbuild"
+          grep -q "susfs-objs" "$kbuild" || { echo "::error::Kbuild append did not take"; exit 1; }
+          tail -6 "$kbuild"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          cd KernelSU/kernel
+          CONFIG_KSU=m \
+          CONFIG_KSU_SAMSUNG_KDP=y \
+          CONFIG_KSU_SAMSUNG_RKP=y \
+          CONFIG_KSU_SAMSUNG_DEFEX=y \
+          CC=clang make -j"$(nproc)" 2>&1 | tee /tmp/kbuild.log || {
+            echo "::error::the merged module does not compile yet - this is the first attempt, and the log above names what clashes"
+            exit 1
+          }
+          ls -l kernelsu.ko
+          modinfo ./kernelsu.ko | head -6
+
+      - name: It is the KSU module, with susfs's entry points in it
+        run: |
+          set -eu
+          cd KernelSU/kernel
+          llvm-strings kernelsu.ko > /tmp/strings.txt || strings kernelsu.ko > /tmp/strings.txt
+          grep -q "susfs_init" /tmp/strings.txt || { echo "::error::susfs is not in this module"; exit 1; }
+          grep -q "sus_path" /tmp/strings.txt || { echo "::error::sus_path is not in this module"; exit 1; }
+          if grep -q "susfs_guard_lkm" /tmp/strings.txt; then
+            echo "::error::this carries the companion module's name, so it is not the merged build"; exit 1
+          fi
+          echo "merged module: KSU + susfs entry points present"
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: kernelsu-susfs-${{ inputs.kmi || 'android15-6.6' }}
+          path: KernelSU/kernel/kernelsu.ko
+          if-no-files-found: error
