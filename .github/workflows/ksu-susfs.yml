@@ -144,7 +144,11 @@ jobs:
           if grep -rqE "\bksu_init_symbol_resolver\(" KernelSU/kernel/susfs; then
             echo "::error::a susfs source still calls KernelSU's resolver initialiser"; exit 1
           fi
-          if grep -rq "find_kernel_symbol_exact" KernelSU/kernel/core KernelSU/kernel/infra 2>/dev/null; then
+          # The renamed form is what must not appear in KernelSU's tree - not the original name, which is
+          # KernelSU's own and is expected there in quantity. An earlier version of this check looked for
+          # the original and failed every run for that reason.
+          if grep -rqE "susfs_(find_kernel_symbol_exact|scan_call_to|resolve_symbol_for_functable_hook|init_symbol_resolver)" \
+               KernelSU/kernel/core KernelSU/kernel/infra KernelSU/kernel/hook 2>/dev/null; then
             echo "::error::the rename leaked into KernelSU's own sources"; exit 1
           fi
 
