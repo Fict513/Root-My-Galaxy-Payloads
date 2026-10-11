@@ -108,15 +108,55 @@ jobs:
         run: |
           set -eu
           mkdir -p KernelSU/kernel/susfs
-          # Everything of theirs except the file we own. Their `lsm_hook.c` is upstream's
-          # security_hook_heads install path; ours is the kprobe route that works on this kernel.
+          # Their sources, minus three files:
+          #
+          #   lsm_hook.c        upstream's security_hook_heads install path; ours is the kprobe route
+          #   symbol_resolver.c the same code KernelSU already carries, and KernelSU's is the one with
+          #                     this project's Samsung work in it. The linker named the collision
+          #                     (`find_kernel_symbol_exact`, `ksu_resolve_symbol_for_functable_hook`,
+          #                     `scan_call_to`), and their callers bind to KernelSU's by dropping these.
+          #   patch_memory.c    likewise (`phys_from_virt`, `ksu_patch_text`), and this is the very code
+          #                     whose read-only write is what cannot land on these devices.
           for f in susfs-src/kernel/*.c susfs-src/kernel/*.h; do
             case "$(basename "$f")" in
-              lsm_hook.c) continue ;;
+              lsm_hook.c | symbol_resolver.c | patch_memory.c) continue ;;
             esac
             cp "$f" KernelSU/kernel/susfs/
           done
           cp susfs-lkm/lsm_hook.c KernelSU/kernel/susfs/lsm_hook.c
+
+          # Our layer's exported names, moved out of KernelSU's namespace. KernelSU-Next has its own
+          # `ksu_lsm_hook()` family, used by its own features (our delta's `selinux_hide` patches
+          # `selinux_setprocattr` through it), and the linker named every one of them as a duplicate.
+          # Namespacing is the smaller change of the two available: ours is insert-shaped only - it
+          # refuses replace-mode by design - so making it the tree's single mechanism would silently
+          # take KernelSU's own feature hostage. Their `sus_path.c` and `susfs_main.c` are re-pointed at
+          # the namespaced entry points in the same breath, so the two sides cannot drift.
+          for pair in \
+            "ksu_lsm_hook_init:susfs_lsm_hook_init" \
+            "ksu_lsm_hook_exit:susfs_lsm_hook_exit" \
+            "ksu_register_lsm_hook:susfs_register_lsm_hook" \
+            "ksu_unregister_lsm_hook:susfs_unregister_lsm_hook" \
+            "ksu_lsm_unhook:susfs_lsm_unhook" \
+            "ksu_lsm_hook:susfs_lsm_hook" \
+          ; do
+            from="${pair%%:*}"; to="${pair##*:}"
+            sed -i "s/\\b${from}\\b/${to}/g" \
+              KernelSU/kernel/susfs/lsm_hook.c \
+              KernelSU/kernel/susfs/lsm_hook.h \
+              KernelSU/kernel/susfs/sus_path.c \
+              KernelSU/kernel/susfs/susfs_main.c
+          done
+          # The two callers, by file: `sus_path.c` registers the hooks, `susfs_main.c` owns the layer,
+          # and both names are checked so a rename that missed one side fails here rather than at the
+          # link - or worse, silently against KernelSU's own implementation.
+          grep -q "susfs_register_lsm_hook" KernelSU/kernel/susfs/sus_path.c || {
+            echo "::error::sus_path.c does not call the namespaced layer"; exit 1; }
+          grep -q "susfs_lsm_hook_init" KernelSU/kernel/susfs/susfs_main.c || {
+            echo "::error::susfs_main.c does not call the namespaced layer"; exit 1; }
+          if grep -qE "\bksu_register_lsm_hook\(|\bksu_lsm_hook_init\(" KernelSU/kernel/susfs/*.c; then
+            echo "::error::a susfs source still calls KernelSU's own LSM names"; exit 1
+          fi
           grep -q "install path is kprobe-based" KernelSU/kernel/susfs/lsm_hook.c || {
             echo "::error::our hook layer is not in the tree"; exit 1; }
           if grep -q "ksu_lsm_hook_patch_slot" KernelSU/kernel/susfs/lsm_hook.c; then
