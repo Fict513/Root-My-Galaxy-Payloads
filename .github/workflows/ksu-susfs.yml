@@ -554,3 +554,25 @@ jobs:
               handle.write("\n")
           print(json.dumps(feed, indent=2))
           PY
+
+      - name: Commit it
+        run: |
+          set -eu
+          # A publish is a commit. Without this step the daemon and its entry existed only in the runner -
+          # which is what the first run of this job did: it reported success and published nothing.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kernelsu support/kernelsu-generic-susfs.json
+          if git diff --cached --quiet; then
+            echo "nothing changed: the same module, built from the same tree, publishes the same daemon"
+            exit 0
+          fi
+          # Checked against the index, not the worktree: the file has to be in the commit, and this is the
+          # step where a missing `git add` would otherwise pass unnoticed.
+          for path in kernelsu support/kernelsu-generic-susfs.json; do
+            git ls-files --error-unmatch "$path" >/dev/null || { echo "::error::$path is not tracked"; exit 1; }
+          done
+          git commit -q -m "build(payloads): publish the susfs daemon for ${{ inputs.kmi || 'android15-6.6' }}" \
+            -m "Built from $SUSFS_REPO@$SUSFS_REF merged into KernelSU-Next $KSU_REF by the ${{ github.workflow }} workflow."
+          git pull --rebase --autostash
+          git push
