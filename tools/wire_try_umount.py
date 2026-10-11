@@ -24,9 +24,11 @@ What it does:
      - registers the layer in `susfs_layers[]`, which is what makes its init run at all: without the
        entry the feature is never initialised and, because it is advertised only while its init
        succeeded, never reported - measured on the phone against the first published daemon;
-  3. `kernel/hook/syscall_hook_manager.c`
-     - calls `susfs_try_umount()` in KernelSU-Next's setuid work, immediately before
-       `ksu_handle_setresuid()`, which is upstream's order ("susfs come first").
+  3. `kernel/feature/kernel_umount.c`
+     - calls `susfs_try_umount()` inside KernelSU-Next's own umount path, after its `ksu_cred` is in
+       place and before its own list is walked.  Not in the setuid work, which is where this started
+       and where the phone proved it cannot work: that work runs after the credentials changed, so
+       `path_umount()` answered `-1` (EPERM) for every path.
 It touches no Kbuild on purpose: the workflow's object list is built from the sources it finds
 (`objects=$(cd KernelSU/kernel && ls susfs/*.c | sed 's/\.c$/.o/')`), so a new file in that
 directory is compiled without an edit here - and adding one would list the same object twice.
@@ -38,7 +40,7 @@ import sys
 
 SUSFS_DIR = pathlib.Path("KernelSU/kernel/susfs")
 SUPERCALL = SUSFS_DIR / "susfs_supercall.c"
-SETUID = pathlib.Path("KernelSU/kernel/hook/syscall_hook_manager.c")
+UMOUNT = pathlib.Path("KernelSU/kernel/feature/kernel_umount.c")
 LAYERS = SUSFS_DIR / "susfs_main.c"
 
 changes = []
@@ -220,36 +222,39 @@ def wire_layer():
     write(LAYERS, text)
 
 
-def wire_setuid_call():
-    text = read(SETUID)
+def wire_umount_call():
+    """Call the layer from inside KernelSU-Next's own umount path.
+
+    Every precondition KernelSU applies to its own umounting has already passed at this point - the
+    new uid is an app (or webview zygote, or isolated), `ksu_uid_should_umount()` said yes, and the
+    caller is a zygote child, which is their guard against an su app that setuid'd to an app uid
+    while sitting in the global mount namespace - and `ksu_cred` is already swapped in.  That is
+    exactly the position upstream calls `susfs_try_umount()` from, with the order its comment asks
+    for: "susfs come first, and lastly umount by ksu, make sure umount in reversed order".
+    """
+    text = read(UMOUNT)
     if "susfs_try_umount(" in text:
-        report(SETUID, "already wired, leaving it alone")
+        report(UMOUNT, "already wired, leaving it alone")
         return
 
-    # <linux/cred.h> is added on purpose: the call below uses current_uid(), and this file does not
-    # include it (measured by the first CI run, which failed on exactly that assumption).
     text = insert_after_first_include(
         text,
-        '#include <linux/cred.h>\n'
-        '#include "susfs/susfs_try_umount.h"\t/* CONFIG_KSU_SUSFS_TRY_UMOUNT */\n',
-        SETUID,
-        "include the try_umount layer (and cred.h, for current_uid)",
+        '#include "susfs_try_umount.h"\t/* CONFIG_KSU_SUSFS_TRY_UMOUNT */\n',
+        UMOUNT,
+        "include the try_umount layer",
     )
 
-    # Upstream's order: the SUSFS paths come off first, then KernelSU's own umounts.  The uid is
-    # carried for the feature's log line only (upstream carries it the same way and decides nothing
-    # from it), and it is read from `current` rather than the work struct so this does not depend on
-    # a field name in a tree this repository does not own.
-    text = insert_before(
+    text = insert_after(
         text,
-        "ksu_handle_setresuid(",
-        "susfs_try_umount(current_uid().val);",
-        SETUID,
-        "call susfs_try_umount() before KernelSU's own umounts",
-        indent_from=True,
+        "const struct cred *saved = override_creds(ksu_cred);",
+        "\n\t/* This repository's registered paths, before KernelSU's own list and inside its credential\n"
+        "\t * swap, which is the order and the environment upstream's feature expects. */\n"
+        "\tsusfs_try_umount(new_uid);\n",
+        UMOUNT,
+        "call susfs_try_umount() from KernelSU's umount path",
     )
 
-    write(SETUID, text)
+    write(UMOUNT, text)
 
 
 # There is no wire_kbuild(): the workflow's object list is a glob over `susfs/*.c`, so the new
@@ -262,7 +267,7 @@ def main():
     print("wire_try_umount: wiring CONFIG_KSU_SUSFS_TRY_UMOUNT into the merged tree")
     wire_supercall()
     wire_layer()
-    wire_setuid_call()
+    wire_umount_call()
     print(f"wire_try_umount: {len(changes)} change(s) applied")
 
 

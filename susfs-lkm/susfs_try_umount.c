@@ -70,7 +70,6 @@
 
 #include "susfs_abi.h"		/* SUSFS_MAX_LEN_PATHNAME */
 #include "susfs_log.h"
-#include "ksu_umount_gate.h"	/* susfs_is_current_proc_umounted_app, the gate the unmount needs */
 #include "symbol_resolver.h"	/* ksu_kallsyms_lookup_name, for path_umount (measured: the first CI run
 				 * named it, "call to undeclared function") */
 #include "susfs_try_umount.h"
@@ -78,6 +77,12 @@
 /* Written once by the init below, read by every unmount; non-NULL exactly while the feature is
  * active, which is the invariant the caller relies on instead of testing the pointer on each call. */
 static int (*path_umount_fn)(struct path *path, int flags);
+
+/* KernelSU-Next's own root credential, declared here rather than included so this file does not
+ * depend on an include path it cannot check from where it is edited: kernel/include/ksu.h:11
+ * declares the same thing, it is set up in kernel/core/init.c before any hook can run, and this
+ * source is compiled into the same module. */
+extern struct cred *ksu_cred;
 
 static LIST_HEAD(try_umount_list);
 static DEFINE_MUTEX(try_umount_lock);
@@ -142,23 +147,23 @@ static void try_umount_one(const char *mnt, int mnt_mode)
 void susfs_try_umount(uid_t target_uid)
 {
 	struct st_susfs_try_umount_list *cursor, *temp;
+	const struct cred *saved;
 
 	if (!path_umount_fn)
 		return;
 
-	/* Upstream's gate, and here it is also a safety rail: this call site fires for every setresuid,
-	 * including a system process's own transition (measured on the phone: "for uid 1000", "for uid
-	 * 5004"), and unmounting registered paths inside system_server's mount namespace is not the
-	 * feature - it is damage.  The predicate is the fork's own: an app uid that KernelSU would umount
-	 * modules for. */
-	if (!susfs_is_current_proc_umounted_app()) {
-		/* Rate-limited, and worth having: if this gate is wrong about the moment the work runs in
-		 * (current_uid() is the *new* uid on this tree - the phone's log shows app uids, not 0), the
-		 * symptom would otherwise be a feature that never fires and never says why. */
-		pr_info_ratelimited("susfs_guard_lkm: try_umount: caller is not an app process (uid %u), "
-				    "skipped\n", current_uid().val);
-		return;
-	}
+	/* No gate of ours: the call site is inside KernelSU-Next's own umount path, where the new uid has
+	 * already been checked to be an app (or an isolated or webview-zygote one), `ksu_uid_should_umount()`
+	 * has said yes, and the caller has been checked to be a zygote child - their guard against an su app
+	 * that setuid'd to an app uid while sitting in the global mount namespace.  A gate here reading
+	 * current_uid() would see the *old* uid at that point and refuse everything, which is what an
+	 * earlier version of this file did.
+	 *
+	 * path_umount() still needs CAP_SYS_ADMIN in the mount namespace's user namespace.  KernelSU-Next
+	 * swaps in ksu_cred around its own walk, and this repeats it rather than relying on that: with the
+	 * call in the setuid work - before this file was moved - every unmount returned -1 (EPERM) on the
+	 * phone, because the credentials were already the app's. */
+	saved = ksu_cred ? override_creds(ksu_cred) : NULL;
 
 	mutex_lock(&try_umount_lock);
 	list_for_each_entry_safe(cursor, temp, &try_umount_list, list) {
@@ -167,6 +172,9 @@ void susfs_try_umount(uid_t target_uid)
 		try_umount_one(cursor->info.target_pathname, cursor->info.mnt_mode);
 	}
 	mutex_unlock(&try_umount_lock);
+
+	if (saved)
+		revert_creds(saved);
 }
 
 /*

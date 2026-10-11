@@ -321,19 +321,20 @@ jobs:
         run: |
           set -eu
           # Our layer, plus the edits that make it reachable: a command id the caller's helper sends,
-          # the fifth argument that command's error comes back in, a line in the feature list so a
-          # SUSFS module takes the SUSFS route instead of ksud's umount list, and the call itself in
-          # KernelSU-Next's setuid work.  Every anchor is asserted by the script, and the greps below
-          # re-check the parts that decide whether the feature exists at all - a build that quietly
-          # skipped one would still produce a daemon, and it would keep the old behaviour.
+          # an error reply in the field that caller reads, a line in the feature list so a SUSFS module
+          # takes the SUSFS route instead of ksud's umount list, and the call itself inside
+          # KernelSU-Next's own umount path - not in the setuid work, which the phone showed cannot
+          # work because it runs after the credentials change.  Every anchor is asserted by the script,
+          # and the greps below re-check the parts that decide whether the feature exists at all - a
+          # build that quietly skipped one would still produce a daemon, and keep the old behaviour.
           python3 tools/wire_try_umount.py
           # Cheap, and it would have caught a dropped brace before a five-minute build did: the file
           # this repository adds is checked for balanced braces and parens first.
           python3 tools/check_c_balance.py KernelSU/kernel/susfs/susfs_try_umount.c
           grep -q "CONFIG_KSU_SUSFS_TRY_UMOUNT" KernelSU/kernel/susfs/susfs_supercall.c || {
             echo "::error::the feature is not reported, so a module will not take the SUSFS route"; exit 1; }
-          grep -q "susfs_try_umount(current_uid().val)" KernelSU/kernel/hook/syscall_hook_manager.c || {
-            echo "::error::the call site is missing from KernelSU-Next's setuid work"; exit 1; }
+          grep -q "susfs_try_umount(new_uid)" KernelSU/kernel/feature/kernel_umount.c || {
+            echo "::error::the call site is missing from KernelSU-Next's umount path"; exit 1; }
           # The object list is a glob over susfs/*.c, so this also proves the new source was copied
           # into the merged directory where that glob can see it.
           # The layer has to be registered in the init table, or its init never runs and the feature
