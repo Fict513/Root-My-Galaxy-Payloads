@@ -299,9 +299,10 @@ jobs:
       - name: Place them per variant, and write the manifest
         run: |
           set -eu
-          # The layout is the feed's: one directory per variant, which is also what makes "all three
-          # of them" visible in the repository rather than only in the JSON.
-          rm -rf susfs/stable susfs/preview susfs/legacy
+          # The layout is the feed's: one directory per variant, which is also what makes "all of
+          # them" visible in the repository rather than only in the JSON. Only the variants *this run
+          # built* are cleared - a one-variant publish that wiped the others left their feed entries
+          # pointing at files that no longer existed, which is worse than not publishing at all.
           python3 - <<'PY'
           import json, os, pathlib, shutil
 
@@ -309,6 +310,8 @@ jobs:
           versions = json.loads(os.environ["SUSFS_VERSIONS"])
           records = {}
           for directory in sorted(pathlib.Path("artifacts").glob("susfs-lkm-*")):
+              # Cleared here, per built variant, rather than with one `rm -rf` over the others.
+              shutil.rmtree(pathlib.Path("susfs") / directory.name.split("-")[2], ignore_errors=True)
               parts = directory.name.split("-")          # susfs-lkm-<variant>-<kmi...>
               variant = parts[2]
               modules = sorted(directory.glob("susfs_guard_lkm-*.ko"))
@@ -354,6 +357,13 @@ jobs:
             --url-prefix "$URL_PREFIX"
           echo "=== support/susfs-v1.json ==="
           cat support/susfs-v1.json
+
+      - name: Every entry the feed serves is a file this commit carries
+        run: |
+          # The invariant a one-variant publish broke once: a variant this run did not build keeps its
+          # entry, so its artifacts have to still be here. Checked against the local files by size and
+          # digest, which is also what a client checks them against after downloading them.
+          python3 tools/susfs_feed.py --repo . --verify
 
       - name: Commit it
         run: |

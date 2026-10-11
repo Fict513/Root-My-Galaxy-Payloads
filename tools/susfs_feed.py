@@ -282,6 +282,34 @@ def write_feed(repo: str, feed: dict, dry_run: bool) -> None:
         handle.write(text)
 
 
+def verify_files(repo: str, feed: dict) -> list[str]:
+    """Every entry the feed serves, against the file this checkout carries for it.
+
+    The check a one-variant publish learned to need: a variant this run did not build keeps its entry,
+    so its artifacts have to still be in the commit. Comparing the size and the digest is also what a
+    client does after downloading, which is why it is the same two numbers.
+    """
+    failures = []
+    entries = [("loader", feed["loader"])]
+    for variant in feed.get("variants", []):
+        for entry in variant["modules"]:
+            entries.append((f"{variant['id']}/{entry['kmi']}", entry))
+
+    for label, entry in entries:
+        relative = SUSFS_DIR + "/" + entry["url"].split(f"/{SUSFS_DIR}/", 1)[-1]
+        path = os.path.join(repo, relative)
+        if not os.path.isfile(path):
+            failures.append(f"{label}: {relative} is not in this checkout, and the feed serves it")
+            continue
+        size, sha256 = _digest(path)
+        if size != entry["size"] or sha256 != entry["sha256"]:
+            failures.append(
+                f"{label}: {relative} is {size} bytes / {sha256[:12]}, the feed says "
+                f"{entry['size']} / {entry['sha256'][:12]}"
+            )
+    return failures
+
+
 def coverage(feed: dict) -> tuple[list[str], list[tuple[str, str]]]:
     """The KMIs every variant serves, and the pairs a variant is missing.
 
@@ -321,18 +349,20 @@ def _self_test() -> int:
         return path
 
     with tempfile.TemporaryDirectory() as tmp:
-        stable = os.path.join(tmp, "stable")
+        # The fixture is laid out the way the feed serves it - `susfs/<variant>/...` and the loader
+        # beside it - because `--verify` reads a URL back to the path it has to be in.
+        stable = os.path.join(tmp, SUSFS_DIR, "stable")
         good = write(
             stable,
             "susfs_guard_lkm-android15-6.6.ko",
             NAME_MARKER + b"\0" + version.encode() + b"\0",
         )
         legacy = write(
-            os.path.join(tmp, "legacy"),
+            os.path.join(tmp, SUSFS_DIR, "legacy"),
             "susfs_guard_lkm-android15-6.6.ko",
             NAME_MARKER + b"\0no version here\0",
         )
-        loader = write(tmp, "susfs_insmod", b"kallsyms\0")
+        loader = write(os.path.join(tmp, SUSFS_DIR), "susfs_insmod", b"kallsyms\0")
 
         checks += 1
         entry = module_entry(good, "stable", "https://example.test/main", version)
@@ -402,7 +432,13 @@ def _self_test() -> int:
                     "variant": "legacy",
                     "ref": "b" * 40,
                     "version": None,
-                    "modules": [write(os.path.join(tmp, "legacy"), "susfs_guard_lkm-android14-6.1.ko", NAME_MARKER)],
+                    "modules": [
+                        write(
+                            os.path.join(tmp, SUSFS_DIR, "legacy"),
+                            "susfs_guard_lkm-android14-6.1.ko",
+                            NAME_MARKER,
+                        )
+                    ],
                 },
             ],
             loader,
@@ -431,6 +467,22 @@ def _self_test() -> int:
                 merged["variants"][1]["source"]["ref"] != "c" * 40:
             print(f"FAIL a one-variant publish disturbed the others: {merged['variants']}")
             failures += 1
+
+        # The invariant: what the feed serves is what the checkout has, checked by size and digest.
+        checks += 1
+        if verify_files(tmp, feed) != []:
+            print(f"FAIL verifying a feed against its own files reported {verify_files(tmp, feed)}")
+            failures += 1
+
+        checks += 1
+        corrupt = os.path.join(tmp, SUSFS_DIR, "stable", "susfs_guard_lkm-android15-6.6.ko")
+        with open(corrupt, "ab") as handle:
+            handle.write(b"\0")
+        if not verify_files(tmp, feed):
+            print("FAIL a file that no longer matches its entry passed verification")
+            failures += 1
+        with open(corrupt, "wb") as handle:
+            handle.write(NAME_MARKER + b"\0" + version.encode() + b"\0")
 
         manifest = os.path.join(tmp, "manifest.json")
         with open(manifest, "w", encoding="utf-8") as handle:
@@ -479,6 +531,11 @@ def main() -> int:
     parser.add_argument("--url-prefix", help="repository raw-URL prefix this run publishes under")
     parser.add_argument("--dry-run", action="store_true", help="print the feed instead of writing it")
     parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="check every entry the published feed carries against the files in this checkout",
+    )
+    parser.add_argument(
         "--check",
         nargs=2,
         metavar=("PATH", "VARIANT"),
@@ -489,6 +546,21 @@ def main() -> int:
 
     if arguments.self_test:
         return _self_test()
+
+    if arguments.verify:
+        feed = read_feed(arguments.repo)
+        if feed is None:
+            print(f"no {SUSFS_FEED} in this checkout, so there is nothing to verify")
+            return 0
+        failures = verify_files(arguments.repo, feed)
+        for failure in failures:
+            print(f"FAIL {failure}")
+        if failures:
+            print(f"verify: {len(failures)} entr(ies) the feed serves are not what this checkout has")
+            return 1
+        served, _ = coverage(feed)
+        print(f"verify: {len(feed['variants'])} variant(s), {len(served)} KMI(s), every entry matches its file")
+        return 0
 
     if arguments.check:
         path, variant = arguments.check
