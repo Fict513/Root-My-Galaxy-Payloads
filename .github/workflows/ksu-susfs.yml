@@ -327,6 +327,9 @@ jobs:
           # re-check the parts that decide whether the feature exists at all - a build that quietly
           # skipped one would still produce a daemon, and it would keep the old behaviour.
           python3 tools/wire_try_umount.py
+          # Cheap, and it would have caught a dropped brace before a five-minute build did: the file
+          # this repository adds is checked for balanced braces and parens first.
+          python3 tools/check_c_balance.py KernelSU/kernel/susfs/susfs_try_umount.c
           grep -q "CONFIG_KSU_SUSFS_TRY_UMOUNT" KernelSU/kernel/susfs/susfs_supercall.c || {
             echo "::error::the feature is not reported, so a module will not take the SUSFS route"; exit 1; }
           grep -q "susfs_try_umount(current_uid().val)" KernelSU/kernel/hook/syscall_hook_manager.c || {
