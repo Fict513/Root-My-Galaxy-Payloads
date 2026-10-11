@@ -94,11 +94,19 @@ permissions:
   contents: write
 
 env:
-  # Upstream, and one pinned commit per variant. Pinned rather than tracking a branch, so a rebuild of
-  # the same variants produces the same modules; changing a variant's pin is what moves that line for
-  # this repository, and the feed records the ref every module was built from.
+  # Upstream, and one **branch** per variant - not a pinned commit.
+  #
+  # These used to be commit hashes, and the cost of that showed up today: upstream moved, our line did
+  # not, and the gap only exists because nothing rebuilds until somebody edits a hash. A KSU release
+  # moves every pair in this repository automatically (`upstream-watch.yml`); susfs is built the same
+  # way now, so a rebuild picks up upstream's current sources.
+  #
+  # What replaces the pin is a record rather than a freeze: every run resolves its branch to a commit
+  # *before* building (the download records it in the feed's `source.ref`), so an artifact is still
+  # traceable to the revision it came from even though the ref moves. And the guard below - the overlay
+  # check - is what keeps a moving upstream from failing silently.
   SUSFS_REPO: inforcqb/susfs4ksu-lkm
-  SUSFS_REFS: '{"stable":"191339da5db5e9a45a4b011f9f7aa4174a760bae","preview":"d31de24327eee6fd7e4f28a82b733a2f485c3e94","legacy":"0b197bfd3d3402ee108e19c66ed3293d9d14481a","samsung":"191339da5db5e9a45a4b011f9f7aa4174a760bae"}'
+  SUSFS_REFS: '{"stable":"main","preview":"dev","legacy":"legacy","samsung":"main"}'
   # The release string each variant's modules answer with, checked against `kernel/susfs.h` before the
   # build and against the binary after it. Null for the legacy line, which carries none: an entry that
   # named a release its binary cannot print would be a claim no reader could check.
@@ -197,6 +205,30 @@ jobs:
             }
             echo "sources carry $VARIANT_VERSION"
           fi
+
+      - name: The overlay still fits the tree it is about to be compiled into
+        if: matrix.variant == 'samsung'
+        run: |
+          # `lsm_hook.c` here is written against upstream's `lsm_hook.h`: the struct, the insert
+          # initialiser, and the four entry points it defines. Followed by a branch, that header can
+          # change under us - it already has, 46 lines since the commit this line used to be pinned to -
+          # and the failures that would cause are the ugly kind: a compile error naming a struct member,
+          # or worse, a build that succeeds against a renamed field and a module that installs nothing.
+          # So the surface is asserted by name, here, before the build starts.
+          set -eu
+          header="susfs-src/kernel/lsm_hook.h"
+          for token in \
+            "struct ksu_lsm_hook" "KSU_LSM_HOOK_INSERT" "KSU_LSM_HOOK_INIT" \
+            "head_name" "hook_offset" "replacement" "insert" "struct security_hook_list" \
+            "ksu_register_lsm_hook" "ksu_unregister_lsm_hook" "ksu_lsm_hook_init" "ksu_lsm_hook_exit" \
+          ; do
+            grep -q "$token" "$header" || {
+              echo "::error::upstream's lsm_hook.h no longer declares '$token', which our hook layer is"
+              echo "::error::written against. Update susfs-lkm/lsm_hook.c for the new API before building."
+              exit 1
+            }
+          done
+          echo "overlay surface present in $header ($(git -C susfs-src rev-parse --short HEAD))"
 
       - name: This repository's hook layer, where the variant is the Samsung one
         if: matrix.variant == 'samsung'
@@ -307,6 +339,7 @@ jobs:
           python3 - <<'PY'
           import json, os, pathlib, shutil
 
+          # Branch per variant; each one is resolved to its commit below, before the feed is written.
           refs = json.loads(os.environ["SUSFS_REFS"])
           versions = json.loads(os.environ["SUSFS_VERSIONS"])
           # Cleared once per variant this run built, *before* anything is placed: doing it inside the
@@ -315,6 +348,21 @@ jobs:
           built = sorted({item.name.split("-")[2] for item in pathlib.Path("artifacts").glob("susfs-lkm-*")})
           for variant in built:
               shutil.rmtree(pathlib.Path("susfs") / variant, ignore_errors=True)
+
+          # The commit each variant's branch resolved to *this run*. Resolved here, after the modules
+          # were built, and recorded in the feed's `source.ref`: with the branch as the input, this is
+          # the only thing that makes an artifact answerable to a revision.
+          import subprocess
+          for variant, branch in refs.items():
+              head = subprocess.run(
+                  ["git", "ls-remote", "https://github.com/" + os.environ["SUSFS_REPO"] + ".git",
+                   "refs/heads/" + branch],
+                  capture_output=True, text=True, check=True,
+              ).stdout.split()
+              if not head:
+                  raise SystemExit(f"upstream has no branch {branch} for variant {variant}")
+              print(f"{variant}: {branch} -> {head[0][:12]}")
+              refs[variant] = head[0]
 
           records = {}
           for directory in sorted(pathlib.Path("artifacts").glob("susfs-lkm-*")):
