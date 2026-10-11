@@ -217,8 +217,17 @@ def build_feed(
     loader: str,
     url_prefix: str,
     repository: str,
+    previous: dict | None = None,
 ) -> dict:
-    variants = []
+    """The feed, with this run's variants replaced and every other variant kept.
+
+    A publish builds what its own run asked for - one line, or one KMI - and the file is served to
+    devices that load the others. So a variant this run did not build keeps the entry it already has:
+    the alternative is a one-variant publish that silently withdraws three, which is the kind of
+    absence nobody reports. Only the variants present in `records` are rewritten, and their entries are
+    in the order `VARIANTS` lists them.
+    """
+    fresh = {}
     for record in sorted(records, key=lambda entry: VARIANTS.index(entry["variant"])):
         variant = record["variant"]
         version = record.get("version")
@@ -229,22 +238,37 @@ def build_feed(
         kmis = [entry["kmi"] for entry in entries]
         if len(kmis) != len(set(kmis)):
             raise SystemExit(f"{variant}: two modules claim the same KMI: {kmis}")
-        variants.append(
-            {
-                "id": variant,
-                "source": {
-                    "repository": repository,
-                    "license": SOURCE_LICENSE,
-                    "ref": record["ref"],
-                    "version": version,
-                },
-                "modules": entries,
-            }
-        )
+        fresh[variant] = {
+            "id": variant,
+            "source": {
+                "repository": repository,
+                "license": SOURCE_LICENSE,
+                "ref": record["ref"],
+                "version": version,
+            },
+            "modules": entries,
+        }
+
+    carried = {}
+    if previous:
+        for entry in previous.get("variants", []):
+            carried[entry.get("id")] = entry
+
+    variants = [fresh[vid] if vid in fresh else carried[vid]
+                for vid in VARIANTS if vid in fresh or vid in carried]
     # And the one thing the whole file has to be able to say: which variants it serves, in the order
     # they are built for. A variant that disappears silently is how a device keeps loading a module
     # nobody publishes any more.
     return {"schemaVersion": 1, "loader": loader_entry(loader, url_prefix), "variants": variants}
+
+
+def read_feed(repo: str) -> dict | None:
+    """The feed as it is published now, or None when there is none yet."""
+    path = os.path.join(repo, SUSFS_FEED)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def write_feed(repo: str, feed: dict, dry_run: bool) -> None:
@@ -392,6 +416,22 @@ def _self_test() -> int:
             print(f"FAIL a gap between variants reads as {missing}")
             failures += 1
 
+        # A one-variant publish must not withdraw the others: the file is served to devices that load
+        # them, and their absence would be silent.
+        checks += 1
+        merged = build_feed(
+            [{"variant": "legacy", "ref": "c" * 40, "version": None, "modules": [legacy]}],
+            loader,
+            "https://example.test/main",
+            SOURCE_REPOSITORY,
+            partial,
+        )
+        if [variant["id"] for variant in merged["variants"]] != ["stable", "legacy"] or \
+                merged["variants"][0] != partial["variants"][0] or \
+                merged["variants"][1]["source"]["ref"] != "c" * 40:
+            print(f"FAIL a one-variant publish disturbed the others: {merged['variants']}")
+            failures += 1
+
         manifest = os.path.join(tmp, "manifest.json")
         with open(manifest, "w", encoding="utf-8") as handle:
             json.dump(records, handle)
@@ -462,18 +502,23 @@ def main() -> int:
     if not arguments.url_prefix:
         parser.error("--url-prefix is required: an entry has to say where it is served from")
 
+    records = read_manifest(arguments.manifest)
+    previous = read_feed(arguments.repo)
+    rebuilt = {record["variant"] for record in records}
     feed = build_feed(
-        read_manifest(arguments.manifest),
+        records,
         arguments.loader,
         arguments.url_prefix,
         arguments.repository,
+        previous,
     )
     write_feed(arguments.repo, feed, arguments.dry_run)
 
     served, missing = coverage(feed)
     for variant in feed["variants"]:
         kmis = ", ".join(entry["kmi"] for entry in variant["modules"])
-        print(f"{variant['id']:<8} {len(variant['modules'])} module(s): {kmis}")
+        origin = "built" if variant["id"] in rebuilt else "kept"
+        print(f"{variant['id']:<8} {len(variant['modules'])} module(s) [{origin}]: {kmis}")
         if variant["source"]["version"] is None:
             print(f"         no release string: built from {variant['source']['ref'][:12]}")
     if missing:
