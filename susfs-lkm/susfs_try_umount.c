@@ -227,6 +227,7 @@ out:
 		if (copy_to_user(err_ptr, &err, sizeof(err)))
 			pr_warn("try_umount supercall: copy_to_user(err_ptr) failed, err %d lost\n", err);
 	}
+}
 
 int susfs_try_umount_init(void)
 {
