@@ -5,7 +5,7 @@
  * A port of upstream's feature of the same name (simonpunk/susfs4ksu,
  * kernel_patches/fs/susfs.c: susfs_add_try_umount(), try_umount(), susfs_try_umount()), which our
  * fork never carried: its header has only the deprecated id
- * (`CMD_SUSFS_ADD_TRY_UMOUNT 0x55580 /* deprecated *​/`, susfs_abi.h), so every module that offers
+ * (`CMD_SUSFS_ADD_TRY_UMOUNT`, 0x55580, marked deprecated in susfs_abi.h), so every module that offers
  * "try umount" without CONFIG_KSU_SUSFS_TRY_UMOUNT falls back to KernelSU's own umount list
  * (`ksud kernel umount add <path> --flags 2`) instead of SUSFS's.  This is that mechanism, and the
  * feature list reports it, so such a module takes the SUSFS route again.
@@ -70,6 +70,8 @@
 
 #include "susfs_abi.h"		/* SUSFS_MAX_LEN_PATHNAME */
 #include "susfs_log.h"
+#include "symbol_resolver.h"	/* ksu_kallsyms_lookup_name, for path_umount (measured: the first CI run
+				 * named it, "call to undeclared function") */
 #include "susfs_try_umount.h"
 
 /* Written once by the init below, read by every unmount; non-NULL exactly while the feature is
