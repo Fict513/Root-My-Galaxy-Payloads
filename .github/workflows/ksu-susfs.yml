@@ -66,8 +66,11 @@ on:
       - 'susfs-lkm/**'
       - '.github/workflows/ksu-susfs.yml'
 
+# Write, because a publish is a commit: the daemon into `kernelsu/` and its entry. That is also why the
+# first attempt at this failed at the last step - the token had read only, and `git push` was denied with
+# a 403 after the build, the checks and the commit had all succeeded.
 permissions:
-  contents: read
+  contents: write
 
 env:
   SUSFS_REPO: inforcqb/susfs4ksu-lkm
