@@ -85,6 +85,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 
 # The file the tier is served from. One name, and no other tool writes it.
@@ -308,6 +309,29 @@ def verify_files(repo: str, feed: dict) -> list[str]:
                 f"{entry['size']} / {entry['sha256'][:12]}"
             )
     return failures
+
+
+def feed_paths(feed: dict) -> list[str]:
+    """The repository paths the feed serves, in one list: the loader and every module."""
+    urls = [feed["loader"]["url"]]
+    urls += [entry["url"] for variant in feed.get("variants", []) for entry in variant["modules"]]
+    return [SUSFS_DIR + "/" + url.split(f"/{SUSFS_DIR}/", 1)[-1] for url in urls]
+
+
+def check_index(repo: str, feed: dict) -> list[str]:
+    """Every path the feed serves, against what git has tracked in [repo].
+
+    The guard a publish needs and the worktree check cannot give it: a file can be deleted between
+    staging and committing - and was, once, by a pathspec whose `*` crossed directory separators, which
+    removed every per-variant module after the worktree check had passed and before the commit that
+    claimed to publish them.
+    """
+    tracked = set(
+        subprocess.run(
+            ["git", "-C", repo, "ls-files"], capture_output=True, text=True, check=False
+        ).stdout.split()
+    )
+    return [path for path in feed_paths(feed) if path not in tracked]
 
 
 def coverage(feed: dict) -> tuple[list[str], list[tuple[str, str]]]:
@@ -536,6 +560,11 @@ def main() -> int:
         help="check every entry the published feed carries against the files in this checkout",
     )
     parser.add_argument(
+        "--check-index",
+        action="store_true",
+        help="check that git has tracked every file the feed serves",
+    )
+    parser.add_argument(
         "--check",
         nargs=2,
         metavar=("PATH", "VARIANT"),
@@ -546,6 +575,17 @@ def main() -> int:
 
     if arguments.self_test:
         return _self_test()
+
+    if arguments.check_index:
+        feed = read_feed(arguments.repo)
+        if feed is None:
+            print(f"no {SUSFS_FEED} in this checkout, so there is nothing to check")
+            return 0
+        missing = check_index(arguments.repo, feed)
+        for path in missing:
+            print(f"::error::{path} is served by the feed and is not tracked here")
+        print(f"feed serves {len(feed_paths(feed))} file(s); {len(feed_paths(feed)) - len(missing)} tracked")
+        return 1 if missing else 0
 
     if arguments.verify:
         feed = read_feed(arguments.repo)

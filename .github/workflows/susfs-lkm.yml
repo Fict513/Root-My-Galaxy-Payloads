@@ -374,10 +374,20 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # The flat layout this tier was first published with: the modules moved under a directory
-          # per variant, so the files beside the loader are removed rather than left to look current.
-          git rm -q --ignore-unmatch susfs/*.ko
+          # The flat layout this tier was first published with: the modules moved under a directory per
+          # variant, so files beside the loader are removed rather than left to look current. The
+          # pathspec is quoted and scoped to this directory - unquoted, the shell hands git the literal
+          # `susfs/*.ko`, and a git pathspec's `*` matches across `/`, so it deleted every per-variant
+          # module after the check above had passed and before the commit.
+          # `glob` magic so the `*` cannot cross a `/`: without it the pathspec also matched every
+          # per-variant module, which is how a publish deleted them after the check above had passed and
+          # before the commit.
+          git rm -q --ignore-unmatch -- ':(top,glob)susfs/*.ko'
           git add susfs support/susfs-v1.json
+          # The invariant that actually matters, checked against the index rather than the worktree:
+          # every file the feed serves has to be tracked by the commit about to be made. The check above
+          # reads the worktree, and the failure this guards was a deletion that happened between the two.
+          python3 tools/susfs_feed.py --repo . --check-index
           if git diff --cached --quiet; then
             echo "nothing changed: the same variants, built from the same commits, publish the same bytes"
             exit 0
