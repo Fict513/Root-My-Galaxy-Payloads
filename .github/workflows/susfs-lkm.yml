@@ -1,7 +1,7 @@
 name: SUSFS LKM
 
 # The hiding module this tier publishes, built from its own sources rather than consumed as a release
-# asset.
+# asset, for **three variants** and every KMI this project supports - 24 modules per full run.
 #
 # ## Why this repository builds it
 #
@@ -10,16 +10,30 @@ name: SUSFS LKM
 # `kernelsu-next-*.ko`), so on these devices susfs can only arrive as a second module, loaded beside
 # it - which is what this workflow builds and what `support/susfs-v1.json` serves.
 #
-# It is built here, from a pinned upstream commit, for one reason: coverage. Upstream's stable line
+# It is built here, from pinned upstream commits, for one reason: coverage. Upstream's stable line
 # builds six KMIs and its own workflow refuses to add the other two, because 6.12 and 6.18 dispatch
 # LSM hooks through a static-call table instead of the hlist that `security_hook_heads` was - a
 # different mechanism with its own code path. The KMIs this repository supports are eight, and its
-# devices include ones on 6.12 and 6.18, so the sources are read from the branch that carries that
-# path (`dev`) at a pinned commit, and every KMI in the matrix gets its own module.
+# devices include ones on 6.12 and 6.18.
+#
+# ## The three variants
+#
+# Upstream keeps more than one implementation line, and they are not interchangeable, so each is
+# built and published on its own (`susfs/<variant>/...`) with its own pin:
+#
+#   stable   `main`    the line upstream calls stable; six KMIs (5.10 x2, 5.15 x2, 6.1, 6.6)
+#   preview  `dev`     carries the 6.12/6.18 static-call path, so it is the only variant that can
+#                      serve an Android 16/17 device; built for all eight KMIs
+#   legacy   `legacy`  the older line, no release string of its own; kept because a phone that
+#                      misbehaves on the current line has one other thing to try
+#
+# A variant is not a flavour: one module serves KernelSU, KernelSU-Next and ReSukiSU alike. What
+# differs is which implementation a device loads, so nothing here chooses between them for a phone -
+# the feed publishes all three and a client decides.
 #
 # A module is not portable across KMIs: vermagic, KMI and the LSM hook prototypes this module hooks
-# by offset all differ. One DDK image per KMI, one module per image, and the KMI is in the artifact's
-# name.
+# by offset all differ. One DDK image per KMI, one module per image and variant, and both the variant
+# and the KMI are in the artifact's path and the feed's entry.
 #
 # ## The loader, and why a module built here can still load on a device
 #
@@ -30,9 +44,10 @@ name: SUSFS LKM
 # after the kernel's own message in `/dev/kmsg` asked for it**, retrying `init_module(2)` once.
 #
 # This tier takes the second: it is what upstream ships for exactly this case, and it keeps one
-# module per KMI instead of one per release per KMI. The loader is not built here - it is a userspace
-# program pinned by digest (URL and sha256 below) and published beside the modules, so a client
-# fetches exactly what was verified here.
+# module per KMI per variant instead of one per release per KMI. One loader serves all three variants
+# because upstream ships the same bytes in its stable and preview releases - the pin below is that
+# digest. The loader is not built here; publishing it with a digest is the whole of what this
+# repository claims about it.
 #
 # Loading is privileged kernel code execution on a stock kernel. Nothing in this workflow installs,
 # loads or enables anything: it builds, checks and publishes artifacts, and a person decides whether
@@ -45,14 +60,14 @@ on:
         description: 'JSON list of KMIs to build, or empty for all eight'
         required: false
         default: ''
+      variants:
+        description: 'JSON list of variants to build, or empty for all three'
+        required: false
+        default: ''
       ddk_release:
         description: 'DDK image release'
         required: false
         default: '20260828'
-      susfs_ref:
-        description: 'Upstream commit to build from'
-        required: false
-        default: ''
       publish:
         description: 'Commit susfs/ and support/susfs-v1.json'
         required: false
@@ -74,36 +89,37 @@ permissions:
   contents: write
 
 env:
-  # Upstream, and the commit the sources are read at. `dev` rather than `main`: it is the branch that
-  # carries the 6.12/6.18 LSM path as well as the older hlist one, which is what lets one workflow
-  # cover every KMI this repository supports. Pinned to a commit, not to the branch, so a rebuild of
-  # the same KMIs produces the same modules - upstream's `main` is named here so the stable line can
-  # be switched to by changing this one value.
+  # Upstream, and one pinned commit per variant. Pinned rather than tracking a branch, so a rebuild of
+  # the same variants produces the same modules; changing a variant's pin is what moves that line for
+  # this repository, and the feed records the ref every module was built from.
   SUSFS_REPO: inforcqb/susfs4ksu-lkm
-  SUSFS_REF: ${{ inputs.susfs_ref || 'ce5c3403acfb294bcbaaf5467e2f10adab7405b4' }}
-  # The release string the modules are built from, read out of `kernel/susfs.h` in that tree. It is
-  # what the module prints when it loads, and what the feed's entries have to carry - see
-  # `tools/susfs_feed.py`, which refuses a module whose binary disagrees with it.
-  SUSFS_VERSION: '2.3.0-gki'
+  SUSFS_REFS: '{"stable":"191339da5db5e9a45a4b011f9f7aa4174a760bae","preview":"d31de24327eee6fd7e4f28a82b733a2f485c3e94","legacy":"0b197bfd3d3402ee108e19c66ed3293d9d14481a"}'
+  # The release string each variant's modules answer with, checked against `kernel/susfs.h` before the
+  # build and against the binary after it. Null for the legacy line, which carries none: an entry that
+  # named a release its binary cannot print would be a claim no reader could check.
+  SUSFS_VERSIONS: '{"stable":"2.3.0-gki","preview":"2.3.0-gki","legacy":null}'
   # The loader, pinned by where it is fetched from and what it must hash to. Not built here: it is a
   # userspace program from the same project, and the only thing this repository has to promise about
-  # it is that the bytes published are the bytes checked.
+  # it is that the bytes published are the bytes checked. The two release assets upstream ships
+  # (stable and preview) are byte-identical, and this is that digest.
   LOADER_URL: https://github.com/inforcqb/susfs4ksu-lkm/releases/download/v2.3.0-r18-dev-44c7672/susfs_insmod
   LOADER_SHA256: 2c23e2259d5ad4d324add01caa6e0d9a03d0e34ee7f112237176568d12630608
   URL_PREFIX: ${{ inputs.url_prefix || 'https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main' }}
 
 jobs:
   module:
-    name: susfs lkm (${{ matrix.kmi }})
+    name: susfs lkm (${{ matrix.variant }}, ${{ matrix.kmi }})
     runs-on: ubuntu-latest
     strategy:
+      # One broken (variant, KMI) pair is a pair to report, not a reason to abandon the other 23 - and
+      # the trio of lines is built together on purpose, so a run says which of them is short where.
       fail-fast: false
       matrix:
-        # Read from the input rather than through `env.KMI_SET`: a matrix is evaluated before the
-        # environment exists, so `env` is not a context a matrix can see. The same eight KMIs the
-        # DFRoot module and the KernelSU modules are built for, because a device in any of them is a
-        # device this project roots.
+        # Read from the inputs rather than through `env`, because a matrix is evaluated before the
+        # environment exists. The eight KMIs are the ones this project builds for: a device in any of
+        # them is a device this project roots.
         kmi: ${{ fromJSON(inputs.kmi || '["android12-5.10","android13-5.10","android13-5.15","android14-5.15","android14-6.1","android15-6.6","android16-6.12","android17-6.18"]') }}
+        variant: ${{ fromJSON(inputs.variants || '["stable","preview","legacy"]') }}
     container:
       image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-${{ inputs.ddk_release || '20260828' }}
       options: --privileged
@@ -111,24 +127,48 @@ jobs:
       - name: Checkout payloads
         uses: actions/checkout@v7
 
-      - name: Checkout the susfs sources at the pinned commit
+      - name: The pin and the version this variant claims
+        # Both are read here, once, into `$GITHUB_ENV`: every later step compares against the same
+        # two values, so a step cannot check one pin and build another.
+        run: |
+          set -eu
+          REF=$(python3 -c "import json,os;print(json.loads(os.environ['SUSFS_REFS'])[os.environ['VARIANT']])")
+          VERSION=$(python3 -c "import json,os;v=json.loads(os.environ['SUSFS_VERSIONS'])[os.environ['VARIANT']];print('' if v is None else v)")
+          echo "VARIANT_REF=$REF" >> "$GITHUB_ENV"
+          echo "VARIANT_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "variant $VARIANT: $SUSFS_REPO@$REF (version ${VERSION:-<none>})"
+        env:
+          VARIANT: ${{ matrix.variant }}
+
+      - name: Checkout the susfs sources at that commit
         uses: actions/checkout@v7
         with:
           repository: ${{ env.SUSFS_REPO }}
-          ref: ${{ env.SUSFS_REF }}
+          ref: ${{ env.VARIANT_REF }}
           path: susfs-src
 
       - name: The version the feed will claim is the version in this tree
         run: |
           # Checked before the build, because the feed's `version` is read out of the binary: a run
           # that pinned one commit and recorded another's release would publish an entry whose own
-          # artifact disagrees with it, which is exactly what `tools/susfs_feed.py --check` refuses.
-          grep -q "SUSFS_LKM_VERSION \"$SUSFS_VERSION\"" susfs-src/kernel/susfs.h || {
-            echo "::error::susfs-src/kernel/susfs.h does not carry SUSFS_LKM_VERSION \"$SUSFS_VERSION\"; bump SUSFS_VERSION with the pin."
-            grep -n "SUSFS_LKM_VERSION" susfs-src/kernel/susfs.h || true
-            exit 1
-          }
-          echo "sources: $SUSFS_REPO@$SUSFS_REF (version $SUSFS_VERSION)"
+          # artifact disagrees with it, which is what `tools/susfs_feed.py --check` refuses.
+          if [ -z "$VARIANT_VERSION" ]; then
+            # The legacy line carries no version string at all, and a variant that recorded one
+            # anyway would be publishing a claim its own binary cannot answer.
+            if grep -q "SUSFS_LKM_VERSION" susfs-src/kernel/susfs.h; then
+              echo "::error::this variant carries SUSFS_LKM_VERSION but records no version; set it in SUSFS_VERSIONS"
+              grep -n "SUSFS_LKM_VERSION" susfs-src/kernel/susfs.h || true
+              exit 1
+            fi
+            echo "no release string in this line, as recorded"
+          else
+            grep -q "SUSFS_LKM_VERSION \"$VARIANT_VERSION\"" susfs-src/kernel/susfs.h || {
+              echo "::error::susfs-src/kernel/susfs.h does not carry SUSFS_LKM_VERSION \"$VARIANT_VERSION\"; bump SUSFS_VERSIONS with the pin."
+              grep -n "SUSFS_LKM_VERSION" susfs-src/kernel/susfs.h || true
+              exit 1
+            }
+            echo "sources carry $VARIANT_VERSION"
+          fi
 
       - name: Build susfs_guard_lkm.ko
         run: |
@@ -157,30 +197,34 @@ jobs:
       - name: It is this module, and it says which release it is
         run: |
           # One check, and it is the feed's own reader rather than a second opinion about it: the
-          # module has to name itself and carry the release string. A build that produced nothing, or
-          # a tree where the module was renamed, fails here instead of at publish.
+          # module has to name itself, and to carry the release string when its variant declares one.
           cp susfs-src/kernel/susfs_guard_lkm.ko "susfs_guard_lkm-${{ matrix.kmi }}.ko"
           python3 tools/susfs_feed.py --self-test
-          python3 tools/susfs_feed.py --check "susfs_guard_lkm-${{ matrix.kmi }}.ko" --version "$SUSFS_VERSION"
+          if [ -n "$VARIANT_VERSION" ]; then
+            python3 tools/susfs_feed.py --check "susfs_guard_lkm-${{ matrix.kmi }}.ko" "${{ matrix.variant }}" --version "$VARIANT_VERSION"
+          else
+            python3 tools/susfs_feed.py --check "susfs_guard_lkm-${{ matrix.kmi }}.ko" "${{ matrix.variant }}"
+          fi
           ls -l "susfs_guard_lkm-${{ matrix.kmi }}.ko"
           echo "sha256: $(sha256sum "susfs_guard_lkm-${{ matrix.kmi }}.ko" | cut -d' ' -f1)"
 
       - name: Upload the module
         uses: actions/upload-artifact@v7
         with:
-          name: susfs-lkm-${{ matrix.kmi }}
+          name: susfs-lkm-${{ matrix.variant }}-${{ matrix.kmi }}
           path: susfs_guard_lkm-${{ matrix.kmi }}.ko
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------------------------
-  # The publish: everything the matrix built, the pinned loader, and the feed that serves them.
+  # The publish: every module the matrix built, the pinned loader, and the feed that serves them.
   #
-  # One job rather than one per KMI, because the feed is a single file and eight writers racing to
-  # rewrite it is eight conflicts to resolve. The artifacts are what the matrix produced, so a publish
-  # cannot contain a module this run did not build.
+  # One job rather than one per variant, because the feed is a single file and three writers racing to
+  # rewrite it is three conflicts to resolve. The artifacts are what the matrix produced, so a publish
+  # cannot contain a module this run did not build - and the manifest below is why it can still name
+  # the commit each one came from.
   # ---------------------------------------------------------------------------------------------
   publish:
-    name: publish susfs tier
+    name: publish susfs tiers
     needs: module
     if: inputs.publish
     runs-on: ubuntu-latest
@@ -195,12 +239,52 @@ jobs:
           # The full history, because this job commits onto the branch it read.
           fetch-depth: 0
 
-      - name: Collect the modules this run built
+      - name: Collect what the matrix built
         uses: actions/download-artifact@v7
         with:
+          # Not merged: the artifact's name carries the variant, and a flat download would have each
+          # variant's `susfs_guard_lkm-<kmi>.ko` overwrite the last one's.
           pattern: susfs-lkm-*
-          merge-multiple: true
-          path: susfs
+          path: artifacts
+
+      - name: Place them per variant, and write the manifest
+        run: |
+          set -eu
+          # The layout is the feed's: one directory per variant, which is also what makes "all three
+          # of them" visible in the repository rather than only in the JSON.
+          rm -rf susfs/stable susfs/preview susfs/legacy
+          python3 - <<'PY'
+          import json, os, pathlib, shutil
+
+          refs = json.loads(os.environ["SUSFS_REFS"])
+          versions = json.loads(os.environ["SUSFS_VERSIONS"])
+          records = {}
+          for directory in sorted(pathlib.Path("artifacts").glob("susfs-lkm-*")):
+              parts = directory.name.split("-")          # susfs-lkm-<variant>-<kmi...>
+              variant = parts[2]
+              modules = sorted(directory.glob("susfs_guard_lkm-*.ko"))
+              if not modules:
+                  raise SystemExit(f"{directory} carries no built module")
+              target = pathlib.Path("susfs") / variant
+              target.mkdir(parents=True, exist_ok=True)
+              placed = []
+              for module in modules:
+                  destination = target / module.name
+                  shutil.copyfile(module, destination)
+                  placed.append(str(destination).replace(os.sep, "/"))
+              records.setdefault(
+                  variant,
+                  {"variant": variant, "ref": refs[variant], "version": versions.get(variant), "modules": []},
+              )["modules"] += placed
+          manifest = [records[variant] for variant in ("stable", "preview", "legacy") if variant in records]
+          if not manifest:
+              raise SystemExit("nothing was built, so there is nothing to publish")
+          with open("susfs-manifest.json", "w", encoding="utf-8") as handle:
+              json.dump(manifest, handle, indent=2)
+          for record in manifest:
+              print(f"{record['variant']:<8} {len(record['modules'])} module(s) from {record['ref'][:12]}")
+          PY
+          find susfs -name '*.ko' | sort
 
       - name: The loader, pinned by digest
         run: |
@@ -213,18 +297,11 @@ jobs:
 
       - name: Write the feed
         run: |
-          modules=()
-          for file in susfs/susfs_guard_lkm-*.ko; do modules+=(--module "$file"); done
-          if [ "${#modules[@]}" = 0 ]; then
-            echo "::error::no susfs_guard_lkm-<kmi>.ko was built, so there is nothing to publish"
-            exit 1
-          fi
           python3 tools/susfs_feed.py \
             --repo . \
-            "${modules[@]}" \
+            --manifest susfs-manifest.json \
             --loader susfs/susfs_insmod \
-            --version "$SUSFS_VERSION" \
-            --ref "$SUSFS_REF" \
+            --repository "$SUSFS_REPO" \
             --url-prefix "$URL_PREFIX"
           echo "=== support/susfs-v1.json ==="
           cat support/susfs-v1.json
@@ -233,13 +310,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The flat layout this tier was first published with: the modules moved under a directory
+          # per variant, so the files beside the loader are removed rather than left to look current.
+          git rm -q --ignore-unmatch susfs/*.ko
           git add susfs support/susfs-v1.json
           if git diff --cached --quiet; then
-            echo "nothing changed: the same KMIs, built from the same commit, publish the same bytes"
+            echo "nothing changed: the same variants, built from the same commits, publish the same bytes"
             exit 0
           fi
-          git commit -q -m "build(payloads): publish the susfs tier for $SUSFS_VERSION" \
-            -m "Built from $SUSFS_REPO@$SUSFS_REF by the ${{ github.workflow }} workflow."
+          git commit -q -m "build(payloads): publish the susfs tier for ${{ github.run_id }}" \
+            -m "stable, preview and legacy, built from the commits pinned in the SUSFS LKM workflow."
           # Rebased before pushing for the same reason the KernelSU publishes are: this file is written
           # by one job while others may be committing to the repository.
           git pull --rebase --autostash
