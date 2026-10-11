@@ -83,50 +83,76 @@ outside the pair job and could not be rebuilt when a KernelSU release moved.
 ## The susfs tier
 
 `susfs-v1.json` is a third, separate feed, and the only one that serves something which is not a
-KernelSU artifact. It holds one hiding module per KMI, plus the loader that puts it in:
+KernelSU artifact. It holds one hiding module per KMI **per variant**, plus the loader that puts them
+in:
 
 ```json
 {
   "schemaVersion": 1,
-  "source": {
-    "repository": "inforcqb/susfs4ksu-lkm",
-    "ref": "ce5c3403acfb294bcbaaf5467e2f10adab7405b4",
-    "version": "2.3.0-gki",
-    "license": "GPL-2.0-only"
-  },
   "loader": { "url": ".../susfs/susfs_insmod", "size": 32800, "sha256": "..." },
-  "modules": [
+  "variants": [
     {
-      "kmi": "android15-6.6",
-      "url": ".../susfs/susfs_guard_lkm-android15-6.6.ko",
-      "size": 1932808,
-      "sha256": "..."
+      "id": "stable",
+      "source": {
+        "repository": "inforcqb/susfs4ksu-lkm",
+        "license": "GPL-2.0-only",
+        "ref": "191339da5db5e9a45a4b011f9f7aa4174a760bae",
+        "version": "2.3.0-gki"
+      },
+      "modules": [
+        {
+          "kmi": "android15-6.6",
+          "url": ".../susfs/stable/susfs_guard_lkm-android15-6.6.ko",
+          "size": 374224,
+          "sha256": "..."
+        }
+      ]
     }
   ]
 }
 ```
 
+**Three variants, because upstream keeps three lines and they are not interchangeable.** Each is
+built from its own pinned commit, published under `susfs/<variant>/`, and carries its pin in its own
+entry:
+
+| variant | upstream line | KMIs | notes |
+| --- | --- | --- | --- |
+| `stable` | `main` | the six below 6.12 | the line upstream ships as a release |
+| `preview` | `dev` | all eight | the only line whose sources compile against 6.12/6.18 |
+| `legacy` | `legacy` | the six below 6.12 | the older line; carries no release string, so its `version` is `null` |
+
+Those KMI sets are not a preference. The stable and legacy sources fail to build against 6.12 (ten
+errors in `sus_mount.c`: `struct mnt_namespace` has no `ns_lock` and no `list`, and `MNT_CURSOR` is
+gone), which is why upstream's own stable workflow refuses to add those two KMIs - so a device on
+Android 16 or 17 has exactly one variant to load. A variant is not a flavour: one module serves
+KernelSU, KernelSU-Next and ReSukiSU alike, and nothing in this feed chooses between the variants for
+a device.
+
 Why a third file: susfs is not in the KernelSU module this repository publishes - a built
 `kernelsu-next-*.ko` has no `susfs` string in it at all - so on these devices it can only arrive as a
-second module, built by `.github/workflows/susfs-lkm.yml` from a pinned upstream commit. No device is
+second module, built by `.github/workflows/susfs-lkm.yml` from those pinned commits. No device is
 named in an entry, because the module is not built for one: one binary per KMI serves every device in
 that family. It is versioned apart from the KernelSU payloads so that a susfs release does not look
 like a payload that moved for devices which never load it, and a KernelSU publish never rebuilds a
 module that did not change.
 
 Every field is measured off the file being published, and two are read out of the binary rather than
-trusted from its name: the module has to contain `susfs_guard_lkm` and the release string its sources
-carry, and `tools/susfs_feed.py` refuses the entry otherwise. The `kmis` of the generic tier have a
-sibling here: the KMI in the artifact's name is checked against the file's own name, and two modules
-claiming one KMI is a feed that offers a device two binaries and no way to choose.
+trusted from its name: the module has to contain `susfs_guard_lkm`, and the release string when its
+variant declares one - `tools/susfs_feed.py` refuses the entry otherwise, and refuses a variant that
+built nothing at all. The `kmis` of the generic tier have a sibling here: the KMI in the artifact's
+name is read off the file's own name, and two modules claiming one KMI is a feed that offers a device
+two binaries and no way to choose.
 
-The loader is published beside the modules and is not built here. These devices run
-`CONFIG_MODULE_FORCE_LOAD=n`, so a module whose `vermagic` does not name the running release is refused
-by the kernel rather than merely discouraged; the loader resolves the module's unexported symbols out
-of `/proc/kallsyms` and patches `vermagic=` in `.modinfo` only after the kernel's own message in
-`/dev/kmsg` asked for it, then retries `init_module(2)` once. That is what keeps one module per KMI
-instead of one per release per KMI. Both files need root to load, and neither is loaded by any job in
-this repository: the workflow builds, checks and publishes, and a person decides what a device runs.
+The loader is published beside the modules and is not built here, and it serves all three variants:
+upstream ships the same bytes in its stable and preview releases, which is the digest pinned in the
+workflow. These devices run `CONFIG_MODULE_FORCE_LOAD=n`, so a module whose `vermagic` does not name
+the running release is refused by the kernel rather than merely discouraged; the loader resolves the
+module's unexported symbols out of `/proc/kallsyms` and patches `vermagic=` in `.modinfo` only after
+the kernel's own message in `/dev/kmsg` asked for it, then retries `init_module(2)` once. That is what
+keeps one module per KMI per variant instead of one per release per KMI and per variant. Both files
+need root to load, and neither is loaded by any job in this repository: the workflow builds, checks
+and publishes, and a person decides what a device runs.
 
 ## How entries are published
 
