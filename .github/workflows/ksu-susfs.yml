@@ -333,6 +333,12 @@ jobs:
             echo "::error::the call site is missing from KernelSU-Next's setuid work"; exit 1; }
           # The object list is a glob over susfs/*.c, so this also proves the new source was copied
           # into the merged directory where that glob can see it.
+          # The layer has to be registered in the init table, or its init never runs and the feature
+          # is reported as absent - which is what the first published daemon did, and what the phone
+          # caught.  A source check is all that can be done here; the runtime answer is the feature
+          # list on a phone.
+          grep -q "susfs_try_umount_init" KernelSU/kernel/susfs/susfs_main.c || {
+            echo "::error::the layer is not registered, so its init never runs"; exit 1; }
           grep -q "susfs_try_umount.o" KernelSU/kernel/Kbuild || {
             echo "::error::the new object is not in the Kbuild list"; exit 1; }
 

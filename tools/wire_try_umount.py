@@ -20,7 +20,11 @@ What it does:
      - accepts both ids in `susfs_cmd_handled()`, without which the kprobe leaves the command to
        `reboot(2)` and the caller reads "the kernel never handled this command";
      - reports the feature, gated on the layer being active.
-  2. `kernel/hook/syscall_hook_manager.c`
+  2. `kernel/susfs/susfs_main.c`
+     - registers the layer in `susfs_layers[]`, which is what makes its init run at all: without the
+       entry the feature is never initialised and, because it is advertised only while its init
+       succeeded, never reported - measured on the phone against the first published daemon;
+  3. `kernel/hook/syscall_hook_manager.c`
      - calls `susfs_try_umount()` in KernelSU-Next's setuid work, immediately before
        `ksu_handle_setresuid()`, which is upstream's order ("susfs come first").
 It touches no Kbuild on purpose: the workflow's object list is built from the sources it finds
@@ -35,6 +39,7 @@ import sys
 SUSFS_DIR = pathlib.Path("KernelSU/kernel/susfs")
 SUPERCALL = SUSFS_DIR / "susfs_supercall.c"
 SETUID = pathlib.Path("KernelSU/kernel/hook/syscall_hook_manager.c")
+LAYERS = SUSFS_DIR / "susfs_main.c"
 
 changes = []
 
@@ -182,6 +187,39 @@ def wire_supercall():
     write(SUPERCALL, text)
 
 
+def wire_layer():
+    """Put the layer in the init table, without which nothing in it ever runs.
+
+    This is the edit whose absence the phone found: the feature list reports an entry only while its
+    `active` callback says so, and that callback answers from the state this init sets up - so a
+    tree where the layer is never initialised reports the feature as absent, which is what it is.
+    The first published daemon was exactly that: the command was reachable and the unmount was not.
+    """
+    text = read(LAYERS)
+    if "susfs_try_umount_init" in text:
+        report(LAYERS, "already wired, leaving it alone")
+        return
+
+    text = insert_after_first_include(
+        text,
+        '#include "susfs_try_umount.h"\t/* the layer below */\n',
+        LAYERS,
+        "include the try_umount layer",
+    )
+
+    # Non-fatal, and false for `armed`: the module works without it (the feature is simply not
+    # advertised), so refusing to load over it would be a worse answer than degrading.
+    text = insert_after(
+        text,
+        "susfs_hide_syms_exit,",
+        '    { "try_umount",\tsusfs_try_umount_init,\t\tsusfs_try_umount_exit,\tfalse, false },\n',
+        LAYERS,
+        "register the layer in susfs_layers[]",
+    )
+
+    write(LAYERS, text)
+
+
 def wire_setuid_call():
     text = read(SETUID)
     if "susfs_try_umount(" in text:
@@ -223,6 +261,7 @@ def wire_setuid_call():
 def main():
     print("wire_try_umount: wiring CONFIG_KSU_SUSFS_TRY_UMOUNT into the merged tree")
     wire_supercall()
+    wire_layer()
     wire_setuid_call()
     print(f"wire_try_umount: {len(changes)} change(s) applied")
 
