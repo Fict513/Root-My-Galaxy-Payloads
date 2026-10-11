@@ -67,6 +67,7 @@
 
 #include <linux/errno.h>
 #include <linux/kernel.h>
+#include <linux/lsm_hooks.h>
 #include <linux/kprobes.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
@@ -325,6 +326,20 @@ int ksu_register_lsm_hook(struct ksu_lsm_hook *hook)
 		pr_err("lsm_hook: %s: probe on %s refused\n", hook->head_name ?: "unknown", slot->symbol);
 		return -ENOENT;
 	}
+	/*
+	 * The `entry` field, used as the flag it is everywhere outside upstream's own install path: this
+	 * module's teardown runs **only** for a hook whose `entry` is non-NULL
+	 * (`if (sus_path_perm_hook.entry) ... ksu_unregister_lsm_hook(...)`, sus_path.c), and
+	 * `sus_path_lsm_active()` is `getattr.entry && perm.entry`. A kprobe route inserts no node, so
+	 * leaving this NULL meant two faults at once: the layer read as unarmed (`lsm=0`, so `/proc/susfs_*`
+	 * was never created and the supercall reported SUS_PATH unsupported), and an unload skipped our
+	 * `unregister_kprobe()` - leaving thirteen probes registered into module memory the kernel was
+	 * about to free, which is a reset on the next syscall through any of them.
+	 *
+	 * The sentinel is a flag, never a node: nothing in this build dereferences it. Upstream's own
+	 * dereferences live in `lsm_hook.c`, the file this one replaces.
+	 */
+	hook->entry = (struct security_hook_list *)hook;
 	susfs_installed++;
 	mutex_unlock(&susfs_slots_lock);
 
@@ -354,6 +369,9 @@ void ksu_unregister_lsm_hook(struct ksu_lsm_hook *hook)
 	 * `unregister_kprobe()` waits for the handlers already running. */
 	slot->hook = NULL;
 	unregister_kprobe(&slot->probe);
+	/* Cleared with the probe, so the guards that decide whether there is anything left to unregister
+	 * read the same state this file does. */
+	hook->entry = NULL;
 	if (susfs_installed > 0)
 		susfs_installed--;
 	mutex_unlock(&susfs_slots_lock);
