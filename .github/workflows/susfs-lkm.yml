@@ -26,6 +26,11 @@ name: SUSFS LKM
 #                      serve an Android 16/17 device; built for all eight KMIs
 #   legacy   `legacy`  the older line, no release string of its own; kept because a phone that
 #                      misbehaves on the current line has one other thing to try
+#   samsung  `main`     upstream's stable sources with **this repository's hook layer** in place of
+#                      theirs: a kretprobe on the SELinux implementation of each hook instead of a
+#                      write into security_hook_heads, which Samsung's kernel refuses with -EFAULT
+#                      (measured; see susfs-lkm/lsm_hook.c). This is the line built for the DirtyFrag
+#                      method, and the only one expected to arm on a stock Samsung kernel.
 #
 # A variant is not a flavour: one module serves KernelSU, KernelSU-Next and ReSukiSU alike. What
 # differs is which implementation a device loads, so nothing here chooses between them for a phone -
@@ -93,11 +98,11 @@ env:
   # the same variants produces the same modules; changing a variant's pin is what moves that line for
   # this repository, and the feed records the ref every module was built from.
   SUSFS_REPO: inforcqb/susfs4ksu-lkm
-  SUSFS_REFS: '{"stable":"191339da5db5e9a45a4b011f9f7aa4174a760bae","preview":"d31de24327eee6fd7e4f28a82b733a2f485c3e94","legacy":"0b197bfd3d3402ee108e19c66ed3293d9d14481a"}'
+  SUSFS_REFS: '{"stable":"191339da5db5e9a45a4b011f9f7aa4174a760bae","preview":"d31de24327eee6fd7e4f28a82b733a2f485c3e94","legacy":"0b197bfd3d3402ee108e19c66ed3293d9d14481a","samsung":"191339da5db5e9a45a4b011f9f7aa4174a760bae"}'
   # The release string each variant's modules answer with, checked against `kernel/susfs.h` before the
   # build and against the binary after it. Null for the legacy line, which carries none: an entry that
   # named a release its binary cannot print would be a claim no reader could check.
-  SUSFS_VERSIONS: '{"stable":"2.3.0-gki","preview":"2.3.0-gki","legacy":null}'
+  SUSFS_VERSIONS: '{"stable":"2.3.0-gki","preview":"2.3.0-gki","legacy":null,"samsung":"2.3.0-gki"}'
   # The loader, pinned by where it is fetched from and what it must hash to. Not built here: it is a
   # userspace program from the same project, and the only thing this repository has to promise about
   # it is that the bytes published are the bytes checked. The two release assets upstream ships
@@ -119,7 +124,7 @@ jobs:
         # environment exists. The eight KMIs are the ones this project builds for: a device in any of
         # them is a device this project roots.
         kmi: ${{ fromJSON(inputs.kmi || '["android12-5.10","android13-5.10","android13-5.15","android14-5.15","android14-6.1","android15-6.6","android16-6.12","android17-6.18"]') }}
-        variant: ${{ fromJSON(inputs.variants || '["stable","preview","legacy"]') }}
+        variant: ${{ fromJSON(inputs.variants || '["stable","preview","legacy","samsung"]') }}
         # The pairs the two older lines cannot build, and this is measured rather than assumed: a run
         # that built them failed with ten errors in `sus_mount.c` against the 6.12 tree (`struct
         # mnt_namespace` has no `ns_lock` and no `list` there, and `MNT_CURSOR` is gone) - the same
@@ -136,6 +141,12 @@ jobs:
           - variant: legacy
             kmi: android16-6.12
           - variant: legacy
+            kmi: android17-6.18
+          # `samsung` is upstream's stable sources plus our hook layer, so it carries the stable
+          # line's six KMIs for the same reason.
+          - variant: samsung
+            kmi: android16-6.12
+          - variant: samsung
             kmi: android17-6.18
     container:
       image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-${{ inputs.ddk_release || '20260828' }}
@@ -186,6 +197,27 @@ jobs:
             }
             echo "sources carry $VARIANT_VERSION"
           fi
+
+      - name: This repository's hook layer, where the variant is the Samsung one
+        if: matrix.variant == 'samsung'
+        run: |
+          # The one thing `samsung` is: upstream's sources with our install path in place. Upstream
+          # publishes a hook by writing it into read-only `__lsm_ro_after_init` memory, which lands on
+          # GKI and returns -EFAULT on this project's devices - so the file is replaced, not patched:
+          # a diff of it against upstream's would be the whole file.
+          cp susfs-lkm/lsm_hook.c susfs-src/kernel/lsm_hook.c
+          # Checked rather than assumed: the build below reads whatever is in the tree, and the one
+          # failure mode that would look like success is a copy that did not happen and an artifact
+          # that is upstream's stable module with our name on it.
+          grep -q "kretprobe-based" susfs-src/kernel/lsm_hook.c || {
+            echo "::error::susfs-lkm/lsm_hook.c was not copied into the checkout"
+            exit 1
+          }
+          if grep -q "ksu_lsm_hook_patch_slot" susfs-src/kernel/lsm_hook.c; then
+            echo "::error::the checkout still holds upstream's read-only-memory install path"
+            exit 1
+          fi
+          echo "hook layer: this repository's kretprobe install path"
 
       - name: Build susfs_guard_lkm.ko
         run: |
@@ -293,7 +325,7 @@ jobs:
                   variant,
                   {"variant": variant, "ref": refs[variant], "version": versions.get(variant), "modules": []},
               )["modules"] += placed
-          manifest = [records[variant] for variant in ("stable", "preview", "legacy") if variant in records]
+          manifest = [records[variant] for variant in ("stable", "preview", "legacy", "samsung") if variant in records]
           if not manifest:
               raise SystemExit("nothing was built, so there is nothing to publish")
           with open("susfs-manifest.json", "w", encoding="utf-8") as handle:

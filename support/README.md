@@ -121,6 +121,7 @@ entry:
 | `stable` | `main` | the six below 6.12 | the line upstream ships as a release |
 | `preview` | `dev` | all eight | the only line whose sources compile against 6.12/6.18 |
 | `legacy` | `legacy` | the six below 6.12 | the older line; carries no release string, so its `version` is `null` |
+| `samsung` | `main` + this repo's hook layer | the six below 6.12 | the line built for the DirtyFrag method: the hooks are installed with kretprobes instead of a write into `security_hook_heads` |
 
 Those KMI sets are not a preference. The stable and legacy sources fail to build against 6.12 (ten
 errors in `sus_mount.c`: `struct mnt_namespace` has no `ns_lock` and no `list`, and `MNT_CURSOR` is

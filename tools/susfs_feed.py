@@ -30,6 +30,10 @@ Upstream keeps more than one implementation line, and they are not interchangeab
 - **legacy**: the older line, kept by upstream for the range it was written for, with no version
   string of its own in `kernel/susfs.h`. It is published because a phone that misbehaves on the
   current line has one other thing to try, and a variant that is not built is not one.
+- **samsung**: upstream's stable sources with this repository's LSM install path in place of theirs -
+  a kretprobe on the SELinux implementation of each hook instead of a write into
+  `security_hook_heads`, which Samsung's kernel refuses with `-EFAULT` (measured on an SM-S938U1).
+  Built for the DirtyFrag method, and the only line expected to arm on a stock Samsung kernel.
 
 A variant is not a flavour: the same module serves KernelSU, KernelSU-Next and ReSukiSU alike. What
 differs between variants is which implementation of susfs a device loads, so each is published on its
@@ -104,7 +108,10 @@ SOURCE_LICENSE = "GPL-2.0-only"
 # The variants this tier serves, and which upstream branch each is. A variant's own release string is
 # *not* here: it comes from the manifest the run writes, because it is a property of the commit that
 # was built rather than of the branch.
-VARIANTS = ("stable", "preview", "legacy")
+# `samsung` is upstream's stable sources with this repository's kretprobe install path in place of
+# theirs - the one line built for the DirtyFrag method, and the one expected to arm on a stock Samsung
+# kernel. See `../susfs-lkm/lsm_hook.c` for why the upstream install path cannot.
+VARIANTS = ("stable", "preview", "legacy", "samsung")
 
 
 def _digest(path: str) -> tuple[int, str]:
