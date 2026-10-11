@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "generic": [
+    {
+      "flavor": "kernelsu-next",
+      "kmis": [
+        "android15-6.6"
+      ],
+      "daemon": {
+        "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-next-generic-susfs-android15-6.6",
+        "size": 6683352,
+        "sha256": "3cd5d1358ee2ea7653ff0750ca7f667397d203159985e6a57df5e3e51559d044",
+        "version": "3.4.1"
+      },
+      "susfs": true
+    }
+  ]
+}
