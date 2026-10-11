@@ -70,6 +70,7 @@
 
 #include "susfs_abi.h"		/* SUSFS_MAX_LEN_PATHNAME */
 #include "susfs_log.h"
+#include "ksu_umount_gate.h"	/* susfs_is_current_proc_umounted_app, the gate the unmount needs */
 #include "symbol_resolver.h"	/* ksu_kallsyms_lookup_name, for path_umount (measured: the first CI run
 				 * named it, "call to undeclared function") */
 #include "susfs_try_umount.h"
@@ -100,27 +101,33 @@ bool susfs_try_umount_active(void)
  *
  * `mnt_mode` is upstream's: 0 unmounts plainly, 1 asks for MNT_DETACH.
  */
+/*
+ * Every branch says so in the log, which is what the first two phone tests needed and did not get: a
+ * registered path that stayed visible could have been unresolvable, not a mount root, or refused by
+ * path_umount, and a silent return made those three indistinguishable from "the feature never ran".
+ * `err 0` from the last line is the success case.
+ */
 static void try_umount_one(const char *mnt, int mnt_mode)
 {
 	struct path path;
 	int err;
 
-	if (kern_path(mnt, 0, &path)) {
+	err = kern_path(mnt, 0, &path);
+	if (err) {
+		SUSFS_LOGI("try_umount: '%s' not resolved, err %d (a path the calling process cannot "
+			   "reach, which for an app is a SELinux refusal more often than a permission bit)\n",
+			   mnt, err);
 		return;
 	}
 
 	if (path.dentry != path.mnt->mnt_root) {
-		/* Not a mount root: nothing registered here is mounted, or it was
-		 * already unmounted by someone else. */
+		SUSFS_LOGI("try_umount: '%s' is not a mount root, nothing to unmount\n", mnt);
 		path_put(&path);
 		return;
 	}
 
 	err = do_path_umount(&path, mnt_mode == 1 ? MNT_DETACH : 0);
-	if (err) {
-		SUSFS_LOGI("try_umount: '%s' not unmounted, err %d\n", mnt, err);
-	}
-
+	SUSFS_LOGI("try_umount: '%s' unmounted, err %d\n", mnt, err);
 	path_put(&path);
 }
 
@@ -138,6 +145,20 @@ void susfs_try_umount(uid_t target_uid)
 
 	if (!path_umount_fn)
 		return;
+
+	/* Upstream's gate, and here it is also a safety rail: this call site fires for every setresuid,
+	 * including a system process's own transition (measured on the phone: "for uid 1000", "for uid
+	 * 5004"), and unmounting registered paths inside system_server's mount namespace is not the
+	 * feature - it is damage.  The predicate is the fork's own: an app uid that KernelSU would umount
+	 * modules for. */
+	if (!susfs_is_current_proc_umounted_app()) {
+		/* Rate-limited, and worth having: if this gate is wrong about the moment the work runs in
+		 * (current_uid() is the *new* uid on this tree - the phone's log shows app uids, not 0), the
+		 * symptom would otherwise be a feature that never fires and never says why. */
+		pr_info_ratelimited("susfs_guard_lkm: try_umount: caller is not an app process (uid %u), "
+				    "skipped\n", current_uid().val);
+		return;
+	}
 
 	mutex_lock(&try_umount_lock);
 	list_for_each_entry_safe(cursor, temp, &try_umount_list, list) {
