@@ -77,6 +77,7 @@
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
+#include <linux/moduleparam.h>
 #include <linux/mutex.h>
 #include <linux/ptrace.h>
 #include <linux/string.h>
@@ -213,6 +214,25 @@ static struct susfs_install susfs_installs[] = {
 
 static DEFINE_MUTEX(susfs_hooks_lock);
 
+/*
+ * How many probes this layer may install, and whether it installs any.
+ *
+ * A panic on load cannot be debugged from the phone it took down, so the layer has to be able to run a
+ * *prefix* of itself: load with `lsm_max=3` and, if that comes up while `lsm_max=4` does not, the fourth
+ * hook is the one to look at. It was measured the hard way: the first build of this file rebooted an
+ * SM-S938U1 on load, and a layer that installs thirteen probes in one go gives no way to tell which.
+ */
+static int lsm_max = -1;
+module_param(lsm_max, int, 0644);
+MODULE_PARM_DESC(lsm_max, "install at most this many probes (-1 installs every hook the caller declares)");
+
+static bool lsm_off;
+module_param(lsm_off, bool, 0644);
+MODULE_PARM_DESC(lsm_off, "install no probes at all (diagnostic)");
+
+/* Incremented as probes are installed, so the prefix above is the order the caller registers in. */
+static int susfs_installed;
+
 #ifdef __aarch64__
 static struct susfs_install *susfs_install_for(const char *member)
 {
@@ -237,6 +257,14 @@ int ksu_register_lsm_hook(struct ksu_lsm_hook *hook)
 
 	/* A swap needs the read-only write this file exists to avoid, so it is refused with its reason
 	 * rather than installed and left doing nothing. */
+	/* The bisect: a refusal is something sus_path reports and the module acts on, where a panic is a
+	 * reboot with no evidence - so a bounded run has to stop *before* the probe that would crash. */
+	if (lsm_off || (lsm_max >= 0 && susfs_installed >= lsm_max)) {
+		pr_warn("lsm_hook: %s: not installed (lsm_off=%d lsm_max=%d, %d already installed)\n",
+			hook->head_name ?: "unknown", lsm_off, lsm_max, susfs_installed);
+		return -EOPNOTSUPP;
+	}
+
 	if (!hook->insert) {
 		pr_err("lsm_hook: %s: replace-shaped hooks need a write into read-only kernel memory, "
 		       "which this kernel refuses; declare it with KSU_LSM_HOOK_INSERT instead\n",
@@ -285,6 +313,7 @@ int ksu_register_lsm_hook(struct ksu_lsm_hook *hook)
 			return ret;
 		}
 		install->slot->hook = hook;
+		susfs_installed++;
 		mutex_unlock(&susfs_hooks_lock);
 
 		SUSFS_LOGI("lsm_hook: %s: kretprobe armed on %s\n", hook->head_name ?: "unknown",
