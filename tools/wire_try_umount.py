@@ -237,18 +237,16 @@ def wire_umount_call():
         report(UMOUNT, "already wired, leaving it alone")
         return
 
-    text = insert_after_first_include(
-        text,
-        '#include "susfs_try_umount.h"\t/* CONFIG_KSU_SUSFS_TRY_UMOUNT */\n',
-        UMOUNT,
-        "include the try_umount layer",
-    )
-
+    # Declared at the call site rather than included, and not for style: this file is built by
+    # KernelSU's own Kbuild, which does not carry the susfs include path, so `#include
+    # "susfs_try_umount.h"` here fails the build with "file not found" (measured by the run before
+    # this one).  A block-scope declaration needs no include path and no edit to their Makefile.
     text = insert_after(
         text,
         "const struct cred *saved = override_creds(ksu_cred);",
         "\n\t/* This repository's registered paths, before KernelSU's own list and inside its credential\n"
         "\t * swap, which is the order and the environment upstream's feature expects. */\n"
+        "\textern void susfs_try_umount(uid_t target_uid);\n"
         "\tsusfs_try_umount(new_uid);\n",
         UMOUNT,
         "call susfs_try_umount() from KernelSU's umount path",
