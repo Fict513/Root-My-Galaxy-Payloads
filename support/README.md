@@ -80,6 +80,54 @@ module per KMI serves a whole KMI family. It replaces the older arrangement wher
 was shared by several device entries - the `s25u` bundle and its siblings - because those were built
 outside the pair job and could not be rebuilt when a KernelSU release moved.
 
+## The susfs tier
+
+`susfs-v1.json` is a third, separate feed, and the only one that serves something which is not a
+KernelSU artifact. It holds one hiding module per KMI, plus the loader that puts it in:
+
+```json
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "inforcqb/susfs4ksu-lkm",
+    "ref": "ce5c3403acfb294bcbaaf5467e2f10adab7405b4",
+    "version": "2.3.0-gki",
+    "license": "GPL-2.0-only"
+  },
+  "loader": { "url": ".../susfs/susfs_insmod", "size": 32800, "sha256": "..." },
+  "modules": [
+    {
+      "kmi": "android15-6.6",
+      "url": ".../susfs/susfs_guard_lkm-android15-6.6.ko",
+      "size": 1932808,
+      "sha256": "..."
+    }
+  ]
+}
+```
+
+Why a third file: susfs is not in the KernelSU module this repository publishes - a built
+`kernelsu-next-*.ko` has no `susfs` string in it at all - so on these devices it can only arrive as a
+second module, built by `.github/workflows/susfs-lkm.yml` from a pinned upstream commit. No device is
+named in an entry, because the module is not built for one: one binary per KMI serves every device in
+that family. It is versioned apart from the KernelSU payloads so that a susfs release does not look
+like a payload that moved for devices which never load it, and a KernelSU publish never rebuilds a
+module that did not change.
+
+Every field is measured off the file being published, and two are read out of the binary rather than
+trusted from its name: the module has to contain `susfs_guard_lkm` and the release string its sources
+carry, and `tools/susfs_feed.py` refuses the entry otherwise. The `kmis` of the generic tier have a
+sibling here: the KMI in the artifact's name is checked against the file's own name, and two modules
+claiming one KMI is a feed that offers a device two binaries and no way to choose.
+
+The loader is published beside the modules and is not built here. These devices run
+`CONFIG_MODULE_FORCE_LOAD=n`, so a module whose `vermagic` does not name the running release is refused
+by the kernel rather than merely discouraged; the loader resolves the module's unexported symbols out
+of `/proc/kallsyms` and patches `vermagic=` in `.modinfo` only after the kernel's own message in
+`/dev/kmsg` asked for it, then retries `init_module(2)` once. That is what keeps one module per KMI
+instead of one per release per KMI. Both files need root to load, and neither is loaded by any job in
+this repository: the workflow builds, checks and publishes, and a person decides what a device runs.
+
 ## How entries are published
 
 A KernelSU release makes every pair in this file stale, and `upstream-watch.yml` is what closes

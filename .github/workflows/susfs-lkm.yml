@@ -1,0 +1,246 @@
+name: SUSFS LKM
+
+# The hiding module this tier publishes, built from its own sources rather than consumed as a release
+# asset.
+#
+# ## Why this repository builds it
+#
+# SUSFS is normally a kernel patch, carried inside the same module as KernelSU. The module this
+# repository publishes per target has no susfs in it (measured: no `susfs` string in a built
+# `kernelsu-next-*.ko`), so on these devices susfs can only arrive as a second module, loaded beside
+# it - which is what this workflow builds and what `support/susfs-v1.json` serves.
+#
+# It is built here, from a pinned upstream commit, for one reason: coverage. Upstream's stable line
+# builds six KMIs and its own workflow refuses to add the other two, because 6.12 and 6.18 dispatch
+# LSM hooks through a static-call table instead of the hlist that `security_hook_heads` was - a
+# different mechanism with its own code path. The KMIs this repository supports are eight, and its
+# devices include ones on 6.12 and 6.18, so the sources are read from the branch that carries that
+# path (`dev`) at a pinned commit, and every KMI in the matrix gets its own module.
+#
+# A module is not portable across KMIs: vermagic, KMI and the LSM hook prototypes this module hooks
+# by offset all differ. One DDK image per KMI, one module per image, and the KMI is in the artifact's
+# name.
+#
+# ## The loader, and why a module built here can still load on a device
+#
+# These devices run `CONFIG_MODULE_FORCE_LOAD=n`, so a module whose `vermagic` does not name the
+# running kernel release is refused by the kernel. Two answers exist: build the module per device
+# release, as the KernelSU pairs in `kernelsu/` are built, or publish the loader that resolves the
+# module's unexported symbols out of `/proc/kallsyms` and patches `vermagic=` in `.modinfo` **only
+# after the kernel's own message in `/dev/kmsg` asked for it**, retrying `init_module(2)` once.
+#
+# This tier takes the second: it is what upstream ships for exactly this case, and it keeps one
+# module per KMI instead of one per release per KMI. The loader is not built here - it is a userspace
+# program pinned by digest (URL and sha256 below) and published beside the modules, so a client
+# fetches exactly what was verified here.
+#
+# Loading is privileged kernel code execution on a stock kernel. Nothing in this workflow installs,
+# loads or enables anything: it builds, checks and publishes artifacts, and a person decides whether
+# a device loads them.
+
+on:
+  workflow_dispatch:
+    inputs:
+      kmi:
+        description: 'JSON list of KMIs to build, or empty for all eight'
+        required: false
+        default: ''
+      ddk_release:
+        description: 'DDK image release'
+        required: false
+        default: '20260828'
+      susfs_ref:
+        description: 'Upstream commit to build from'
+        required: false
+        default: ''
+      publish:
+        description: 'Commit susfs/ and support/susfs-v1.json'
+        required: false
+        type: boolean
+        default: false
+      url_prefix:
+        description: 'Raw-URL prefix the feed serves artifacts from'
+        required: false
+        default: 'https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main'
+  push:
+    # Only what changes the build: prose about the build is not the build.
+    paths:
+      - 'tools/susfs_feed.py'
+      - '.github/workflows/susfs-lkm.yml'
+
+# Write, because a publish is a commit: the modules into `susfs/` and the feed that points at them.
+# Everything else in this workflow only reads.
+permissions:
+  contents: write
+
+env:
+  # Upstream, and the commit the sources are read at. `dev` rather than `main`: it is the branch that
+  # carries the 6.12/6.18 LSM path as well as the older hlist one, which is what lets one workflow
+  # cover every KMI this repository supports. Pinned to a commit, not to the branch, so a rebuild of
+  # the same KMIs produces the same modules - upstream's `main` is named here so the stable line can
+  # be switched to by changing this one value.
+  SUSFS_REPO: inforcqb/susfs4ksu-lkm
+  SUSFS_REF: ${{ inputs.susfs_ref || 'ce5c3403acfb294bcbaaf5467e2f10adab7405b4' }}
+  # The release string the modules are built from, read out of `kernel/susfs.h` in that tree. It is
+  # what the module prints when it loads, and what the feed's entries have to carry - see
+  # `tools/susfs_feed.py`, which refuses a module whose binary disagrees with it.
+  SUSFS_VERSION: '2.3.0-gki'
+  # The loader, pinned by where it is fetched from and what it must hash to. Not built here: it is a
+  # userspace program from the same project, and the only thing this repository has to promise about
+  # it is that the bytes published are the bytes checked.
+  LOADER_URL: https://github.com/inforcqb/susfs4ksu-lkm/releases/download/v2.3.0-r18-dev-44c7672/susfs_insmod
+  LOADER_SHA256: 2c23e2259d5ad4d324add01caa6e0d9a03d0e34ee7f112237176568d12630608
+  URL_PREFIX: ${{ inputs.url_prefix || 'https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main' }}
+
+jobs:
+  module:
+    name: susfs lkm (${{ matrix.kmi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Read from the input rather than through `env.KMI_SET`: a matrix is evaluated before the
+        # environment exists, so `env` is not a context a matrix can see. The same eight KMIs the
+        # DFRoot module and the KernelSU modules are built for, because a device in any of them is a
+        # device this project roots.
+        kmi: ${{ fromJSON(inputs.kmi || '["android12-5.10","android13-5.10","android13-5.15","android14-5.15","android14-6.1","android15-6.6","android16-6.12","android17-6.18"]') }}
+    container:
+      image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-${{ inputs.ddk_release || '20260828' }}
+      options: --privileged
+    steps:
+      - name: Checkout payloads
+        uses: actions/checkout@v7
+
+      - name: Checkout the susfs sources at the pinned commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.SUSFS_REPO }}
+          ref: ${{ env.SUSFS_REF }}
+          path: susfs-src
+
+      - name: The version the feed will claim is the version in this tree
+        run: |
+          # Checked before the build, because the feed's `version` is read out of the binary: a run
+          # that pinned one commit and recorded another's release would publish an entry whose own
+          # artifact disagrees with it, which is exactly what `tools/susfs_feed.py --check` refuses.
+          grep -q "SUSFS_LKM_VERSION \"$SUSFS_VERSION\"" susfs-src/kernel/susfs.h || {
+            echo "::error::susfs-src/kernel/susfs.h does not carry SUSFS_LKM_VERSION \"$SUSFS_VERSION\"; bump SUSFS_VERSION with the pin."
+            grep -n "SUSFS_LKM_VERSION" susfs-src/kernel/susfs.h || true
+            exit 1
+          }
+          echo "sources: $SUSFS_REPO@$SUSFS_REF (version $SUSFS_VERSION)"
+
+      - name: Build susfs_guard_lkm.ko
+        run: |
+          # `pipefail`, because the output is teed and the checks below read that file: a build that
+          # failed would otherwise be read as a build that printed nothing.
+          set -o pipefail
+          : "${KDIR:?the DDK image is expected to set KDIR}"
+          make -C "$KDIR" M="$PWD/susfs-src/kernel" \
+            ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            -j"$(nproc)" modules 2>&1 | tee /tmp/lkm-build.log
+          ls -l susfs-src/kernel/susfs_guard_lkm.ko
+
+      - name: Keep the symbol table, drop the debug info
+        run: |
+          # Not tidiness. The loader resolves this module's unexported symbols by rewriting entries in
+          # its ELF symbol table, so `.symtab` has to survive - while the upstream build carries full
+          # `debug_info`, which is most of the file and is for a build machine rather than a phone.
+          cd susfs-src/kernel
+          before=$(stat -c %s susfs_guard_lkm.ko)
+          llvm-strip -d susfs_guard_lkm.ko
+          after=$(stat -c %s susfs_guard_lkm.ko)
+          echo "size: $before -> $after bytes"
+          llvm-nm --defined-only susfs_guard_lkm.ko | head -5
+          modinfo ./susfs_guard_lkm.ko | head -6
+
+      - name: It is this module, and it says which release it is
+        run: |
+          # One check, and it is the feed's own reader rather than a second opinion about it: the
+          # module has to name itself and carry the release string. A build that produced nothing, or
+          # a tree where the module was renamed, fails here instead of at publish.
+          cp susfs-src/kernel/susfs_guard_lkm.ko "susfs_guard_lkm-${{ matrix.kmi }}.ko"
+          python3 tools/susfs_feed.py --self-test
+          python3 tools/susfs_feed.py --check "susfs_guard_lkm-${{ matrix.kmi }}.ko" --version "$SUSFS_VERSION"
+          ls -l "susfs_guard_lkm-${{ matrix.kmi }}.ko"
+          echo "sha256: $(sha256sum "susfs_guard_lkm-${{ matrix.kmi }}.ko" | cut -d' ' -f1)"
+
+      - name: Upload the module
+        uses: actions/upload-artifact@v7
+        with:
+          name: susfs-lkm-${{ matrix.kmi }}
+          path: susfs_guard_lkm-${{ matrix.kmi }}.ko
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------
+  # The publish: everything the matrix built, the pinned loader, and the feed that serves them.
+  #
+  # One job rather than one per KMI, because the feed is a single file and eight writers racing to
+  # rewrite it is eight conflicts to resolve. The artifacts are what the matrix produced, so a publish
+  # cannot contain a module this run did not build.
+  # ---------------------------------------------------------------------------------------------
+  publish:
+    name: publish susfs tier
+    needs: module
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    concurrency:
+      # The feed is one file: two publishes at once would commit over each other.
+      group: publish-susfs
+      cancel-in-progress: false
+    steps:
+      - name: Checkout payloads
+        uses: actions/checkout@v7
+        with:
+          # The full history, because this job commits onto the branch it read.
+          fetch-depth: 0
+
+      - name: Collect the modules this run built
+        uses: actions/download-artifact@v7
+        with:
+          pattern: susfs-lkm-*
+          merge-multiple: true
+          path: susfs
+
+      - name: The loader, pinned by digest
+        run: |
+          # Fetched rather than built, and refused unless it hashes to what this workflow pins: the
+          # only claim this repository makes about the loader is that the bytes published are the
+          # bytes verified here.
+          curl -sSLo susfs/susfs_insmod "$LOADER_URL"
+          echo "$LOADER_SHA256  susfs/susfs_insmod" | sha256sum -c -
+          ls -l susfs/
+
+      - name: Write the feed
+        run: |
+          modules=()
+          for file in susfs/susfs_guard_lkm-*.ko; do modules+=(--module "$file"); done
+          if [ "${#modules[@]}" = 0 ]; then
+            echo "::error::no susfs_guard_lkm-<kmi>.ko was built, so there is nothing to publish"
+            exit 1
+          fi
+          python3 tools/susfs_feed.py \
+            --repo . \
+            "${modules[@]}" \
+            --loader susfs/susfs_insmod \
+            --version "$SUSFS_VERSION" \
+            --ref "$SUSFS_REF" \
+            --url-prefix "$URL_PREFIX"
+          echo "=== support/susfs-v1.json ==="
+          cat support/susfs-v1.json
+
+      - name: Commit it
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add susfs support/susfs-v1.json
+          if git diff --cached --quiet; then
+            echo "nothing changed: the same KMIs, built from the same commit, publish the same bytes"
+            exit 0
+          fi
+          git commit -q -m "build(payloads): publish the susfs tier for $SUSFS_VERSION" \
+            -m "Built from $SUSFS_REPO@$SUSFS_REF by the ${{ github.workflow }} workflow."
+          # Rebased before pushing for the same reason the KernelSU publishes are: this file is written
+          # by one job while others may be committing to the repository.
+          git pull --rebase --autostash
+          git push
