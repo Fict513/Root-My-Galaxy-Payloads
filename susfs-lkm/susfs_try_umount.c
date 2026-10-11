@@ -217,9 +217,12 @@ out:
 		return;
 	}
 
-	/* A caller that passed no error pointer used this tree's older id (0x55580), whose struct is
-	 * read as { pathname, mnt_mode } followed by the caller's own err field. */
-	pr_warn("try_umount supercall: no error argument, reporting err %d in the log only\n", err);
+	/* No fifth argument: the caller used this tree's older id (0x55580), and its error field lives in
+	 * its own struct.  Not writing it there is what the phone caught - the shipped helper pre-seeds
+	 * that field with 126 ("the kernel never handled this") and reads the answer back from it, so a
+	 * silent kernel reports the feature as unsupported even when the rule was added. */
+	if (copy_to_user(&((struct st_susfs_try_umount_reply __user *)*arg)->err, &err, sizeof(err)))
+		pr_warn("try_umount supercall: copy_to_user(struct err) failed, err %d lost\n", err);
 }
 
 int susfs_try_umount_init(void)

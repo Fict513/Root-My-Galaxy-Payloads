@@ -42,6 +42,19 @@ struct st_susfs_try_umount {
 	int mnt_mode;
 };
 
+/*
+ * What the caller's object looks like for the deprecated id (0x55580), i.e. the shipped helper's
+ * layout: the same two fields with the error after them, which is this tree's convention for every
+ * other command.  Measured on the phone rather than assumed - the helper reported
+ * "CMD: '0x55580', SUSFS operation not supported" because its pre-seeded 126 stayed in this field;
+ * it pre-seeds and reads the answer from the same place, so this offset is the ABI.
+ */
+struct st_susfs_try_umount_reply {
+	char target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	int mnt_mode;
+	int err;
+};
+
 /* The list node, this tree's idiom for every other rule table (sus_path, sus_kstat, open_redirect). */
 struct st_susfs_try_umount_list {
 	struct list_head list;
