@@ -323,12 +323,19 @@ jobs:
           set -eu
           cd KernelSU/kernel
           llvm-strings kernelsu.ko > /tmp/strings.txt || strings kernelsu.ko > /tmp/strings.txt
+          # What has to be here: KernelSU's own symbol, and susfs's half of the merge.
+          #
+          # What is *not* evidence of anything: the string `susfs_guard_lkm`, which their sources carry as
+          # their `pr_fmt` log prefix (`susfs_log.h`) and which therefore appears in any build that
+          # compiles them - the companion module used it as its module name as well, and an earlier
+          # version of this check treated the coincidence as proof of the wrong build and failed a
+          # correct one.
+          grep -q "kernelsu" /tmp/strings.txt || { echo "::error::KernelSU is not in this module"; exit 1; }
           grep -q "susfs_init" /tmp/strings.txt || { echo "::error::susfs is not in this module"; exit 1; }
           grep -q "sus_path" /tmp/strings.txt || { echo "::error::sus_path is not in this module"; exit 1; }
-          if grep -q "susfs_guard_lkm" /tmp/strings.txt; then
-            echo "::error::this carries the companion module's name, so it is not the merged build"; exit 1
-          fi
-          echo "merged module: KSU + susfs entry points present"
+          grep -q "susfs_register_lsm_hook" /tmp/strings.txt || {
+            echo "::error::this module does not carry the namespaced kprobe hook layer"; exit 1; }
+          echo "merged module: KernelSU + susfs, with our namespaced hook layer"
 
       - name: Upload
         uses: actions/upload-artifact@v7
