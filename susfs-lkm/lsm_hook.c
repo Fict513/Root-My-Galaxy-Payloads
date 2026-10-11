@@ -1,77 +1,68 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * The LSM layer, installed with kretprobes instead of a write into security_hook_heads.
+ * The LSM layer, installed the way this project's own Samsung delta installs its hooks.
  *
- * ## Why this replaces the upstream file
+ * ## Why upstream's install path cannot be used here
  *
- * Upstream's `lsm_hook.c` publishes a `struct security_hook_list` by writing it into
- * `security_hook_heads` (or into the `selinux_hooks[]` slot it found by symbol identity) - memory that
- * is `__lsm_ro_after_init`, read-only once the kernel has booted. It makes that write land by
- * translating the address to a physical one, mapping it through a fixmap and storing through
- * `copy_to_kernel_nofault` under `stop_machine`.
+ * Upstream publishes a `struct security_hook_list` by writing it into `security_hook_heads` (or into
+ * the `selinux_hooks[]` slot it found by symbol identity) - memory that is `__lsm_ro_after_init`, so
+ * read-only after boot. It makes that write land by translating the address to a physical one, mapping
+ * it through a fixmap and storing through `copy_to_kernel_nofault` under `stop_machine`.
  *
- * On Samsung kernels that write does not land. Measured on an SM-S938U1 (`6.6.127-android15-8-...-4k`,
- * SELinux enforcing): the module loaded, resolved 97/97 symbols, found the `inode_getattr` list by
- * identity at offset 0x1c8, and then
+ * On Samsung's kernels that write does not land. Measured on an SM-S938U1 (`6.6.127-android15-8-...-4k`,
+ * SELinux enforcing):
  *
+ *     lsm_hook: inode_getattr: list head found by identity at offset 0x1c8
  *     lsm_hook: failed to insert inode_getattr at the head of its list: -14
  *     sus_path: getattr hook failed -14 - nothing would be hidden, refusing to load
  *
- * `-14` is `EFAULT` out of that read-only write, and the module refused to load - correctly. This
- * project already avoids the same class of write in its own KernelSU delta: `CONFIG_KSU_SAMSUNG_NO_PATCH_TEXT`
- * makes `ksu_patch_text()` return `-EOPNOTSUPP` instead of patching, `ksu_syscall_table_hook()` returns
- * errors instead of pretending, and the features that need a hook reach for kprobes/kretprobes instead -
- * `samsung_defex.c` probes `task_defex_enforce` and answers through `regs->regs[0]`, and the AVC spoof
- * probes `slow_avc_audit`.
+ * `-14` is `EFAULT` out of that read-only write. This project's KernelSU delta already answers exactly
+ * this, and its comment says why the answer is a kprobe:
  *
- * So this file keeps upstream's API exactly - `ksu_lsm_hook_init()`, `ksu_lsm_hook_exit()`,
- * `ksu_register_lsm_hook()`, `ksu_unregister_lsm_hook()`, and the `KSU_LSM_HOOK_INSERT` declarations
- * `sus_path.c` writes - and changes only *how* a declared hook is installed: a kretprobe on the SELinux
- * implementation of that member, whose return it may change.
+ *     the slots this feature patches live in the rodata range handed to the hypervisor at init, so
+ *     ksu_patch_text() comes back with an error ... A kprobe reaches the same call site from the other
+ *     side: kprobe instruction pages are whitelisted with the hypervisor, so a breakpoint is accepted
+ *     where a plain write is not. Every slot therefore tries the write first and diverts the handler it
+ *     points at when the write is refused.
  *
- * ## Why one generic shim is faithful to what the insert path did
+ * So this file does what `selinux_hide` does: one `struct kprobe` per member, a `pre_handler`, and a
+ * redirect of the instruction pointer to a `__nocfi` trampoline. Registration is by address first and
+ * by name second, which is `sel_hide_register_probe`'s rule.
  *
- * Upstream's own contract for insert-shaped hooks (`lsm_hook.h`): the hook runs *before* every
- * registered LSM, its replacement must not call any original, and it can only **add a denial**
- * (`-ENOENT`) - it can never suppress another LSM's decision, and it must return 0 on the
- * pass-through path. Every hook `sus_path.c` declares is insert-shaped.
+ * ## What a first attempt at this got wrong, and why it is written this way
  *
- * That maps onto a kretprobe exactly:
+ * The first version of this file used **kretprobes** with per-instance data and overrode the return
+ * value from the return handler. Two device results settled it: with one probe installed the module
+ * refused cleanly, and with two or more the phone rebooted - including when `inode_permission` was
+ * skipped, so it was the mechanism rather than any one member. A kretprobe's return handler is not a
+ * place to run a filesystem decision, and it is not what this project uses anywhere.
  *
- *   1. the SELinux implementation runs and its own answer stands - a denial is left alone;
- *   2. if it allowed (returned 0), the declared replacement is called with the arguments the
- *      implementation was called with, and a non-zero answer of its own replaces the 0. That is the
- *      "add a denial" half and nothing more, which is all the insert path could do either.
+ * ## The three parts, each of them a rule taken from the delta
  *
- * The arguments are passed through as the raw register values captured on entry. That is not a trick:
- * every hook in the table below takes its inputs as pointer arguments in the leading registers
- * (`struct mnt_idmap *`, `struct inode *`, `struct dentry *`, `struct path *`, `struct kstatfs *`), and
- * the replacements read those pointers and return an int - the whole of what this shim relies on. A
- * hook whose replacement needed to *modify* an output buffer could not be honoured this way, and none
- * of theirs does: the insert path has no way to do that either.
+ * 1. **A per-task recursion guard.** A replacement does its own path work, and that work calls the
+ *    same function again, hitting the same probe. The delta keys the guard on the calling task rather
+ *    than a global latch, so two unrelated tasks never block each other and a task that dies inside a
+ *    replacement leaks one small entry instead of wedging every later call.
+ * 2. **`instruction_pointer_set(regs, tramp)` and `return 1`.** The original does not run; the trampoline
+ *    does, with the registers untouched.
+ * 3. **`__nocfi` on both the handler and the trampoline.** The trampoline is entered by a redirected
+ *    instruction pointer, not by a checked call, and it makes the one call this design needs - the
+ *    declared replacement - through a pointer whose type the module cannot restate for thirteen
+ *    different prototypes. `__nocfi` is what makes that call legal here, and it is why the delta marks
+ *    its own tramps the same way.
  *
- * ## Why there is a slot per hook rather than shared handlers
+ * ## What it does, exactly
  *
- * A kretprobe's handlers are given the instance and the registers, and nothing that names the probe
- * they belong to: `struct kretprobe_instance` carries no back pointer to its `struct kretprobe` on this
- * kernel (6.6 GKI - it is behind `rph`, and a rethook build has a different member again). Rather than
- * reach through either layout, each hook gets its own pair of thin handlers, generated with it, so the
- * probe each one belongs to is a compile-time fact. All thirteen share the same two bodies.
+ * Only denials are ever added, which is the whole of what upstream's insert-shaped hook was allowed to
+ * do: the declared replacement is asked, and
  *
- * ## What this costs, and what it does not do
+ *   - it answers 0 -> the hook is left completely alone and SELinux's own decision stands;
+ *   - it answers non-zero -> the call is diverted to a trampoline that returns that value, so the
+ *     denial is added and SELinux never runs - exactly as upstream's inserted node, which ran before
+ *     every LSM and returned its denial without consulting one.
  *
- * - A member with no slot in the table is refused with a log line naming it, rather than installed
- *   against something else. A hook that installs and does nothing is the failure this project
- *   distrusts most.
- * - Replace-shaped hooks (`hook->insert == false`, a function-pointer swap inside `selinux_hooks[]`)
- *   are refused with that reason: the swap is the read-only write that does not land here. Nothing in
- *   this tree declares one.
- * - The mechanism is version-independent, unlike upstream's. 6.12 and later dispatch LSM hooks through
- *   static calls instead of walking `security_hook_heads` and upstream's insert path does not exist
- *   there at all; a kretprobe on `selinux_*` is the same code on every KMI, which is why this file has
- *   no version branches in it.
- * - Nothing here writes to the `struct ksu_lsm_hook` it is handed. The declaration belongs to
- *   `sus_path.c`, and the probe that carries it lives in this file's own slot table.
+ * Nothing here writes to the `struct ksu_lsm_hook` it is handed; the declaration belongs to `sus_path.c`
+ * and the probe that carries it lives in this file's slot table.
  */
 
 #include <linux/errno.h>
@@ -79,148 +70,22 @@
 #include <linux/kprobes.h>
 #include <linux/moduleparam.h>
 #include <linux/mutex.h>
+#include <linux/percpu.h>
 #include <linux/ptrace.h>
+#include <linux/sched.h>
 #include <linux/string.h>
+#include <linux/xarray.h>
 
 #include "lsm_hook.h"
 #include "susfs_log.h"
-
-/* The most arguments any hook in the table takes is five (`inode_rename`); eight is what a shim can
- * pass through in registers without ever touching the stack. */
-#define SUSFS_ARG_REGS 8
-
-struct susfs_args {
-	unsigned long arg[SUSFS_ARG_REGS];
-};
-
-struct susfs_slot {
-	/* The member `sus_path.c` declares, matched against `hook->head_name` at registration. */
-	const char *member;
-	/* The SELinux implementation that decides it, resolved by `register_kretprobe` through
-	 * kallsyms - the same lookup this module already depends on for its 97 imports, and the reason
-	 * there is no address table here to keep in step with a kernel. */
-	const char *symbol;
-	kretprobe_handler_t entry;
-	kretprobe_handler_t ret;
-	struct kprobe *kp;
-	const struct ksu_lsm_hook *hook;
-};
-
-/* The two bodies every hook's generated handlers call. */
-static int susfs_capture(struct susfs_args *args, struct pt_regs *regs)
-{
-	int i;
-
-	for (i = 0; i < SUSFS_ARG_REGS; i++)
-		args->arg[i] = regs->regs[i];
-	return 0;
-}
-
-static int susfs_verdict(const struct ksu_lsm_hook *hook, struct susfs_args *args,
-			 struct pt_regs *regs)
-{
-	int verdict;
-
-	/* The implementation's own answer stands. A denial is a denial, and the insert path could never
-	 * have suppressed one either - only the pass-through case is ours. */
-	if (regs->regs[0] != 0)
-		return 0;
-	if (!hook || !hook->replacement)
-		return 0;
-
-	/* The declared replacement, called with the arguments the implementation was called with.
-	 * `hook->replacement` is `void *` because it carries thirteen different hook signatures; the ones
-	 * in the table take pointer arguments and return an int, which is the whole of what is relied on
-	 * here. */
-	verdict = ((int (*)(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long,
-			    unsigned long, unsigned long, unsigned long))(hook->replacement))(
-		args->arg[0], args->arg[1], args->arg[2], args->arg[3], args->arg[4], args->arg[5],
-		args->arg[6], args->arg[7]);
-
-	if (verdict != 0) {
-		regs->regs[0] = (unsigned long)verdict;
-		/* One answer is enough; nothing after this should re-argue the call. */
-		return 1;
-	}
-	return 0;
-}
-
-#ifdef __aarch64__
-/*
- * One pair of handlers and one probe per hook, from one line each. The probe is a file-scope static,
- * so a handler finds the declaration it belongs to without asking the instance anything.
- */
-#define SUSFS_HOOK_SLOT(suffix, member_, symbol_)                                                  \
-	static struct kretprobe susfs_probe_##suffix;                                              \
-	static struct susfs_slot susfs_slot_##suffix = {                                           \
-		.member = #member_,                                                                \
-		.symbol = symbol_,                                                                 \
-		.kp = &susfs_probe_##suffix.kp,                                                    \
-	};                                                                                         \
-	static int susfs_entry_##suffix(struct kretprobe_instance *ri, struct pt_regs *regs)        \
-	{                                                                                          \
-		return susfs_capture((struct susfs_args *)ri->data, regs);                         \
-	}                                                                                          \
-	static int susfs_ret_##suffix(struct kretprobe_instance *ri, struct pt_regs *regs)          \
-	{                                                                                          \
-		return susfs_verdict(susfs_slot_##suffix.hook, (struct susfs_args *)ri->data, regs); \
-	}
-
-SUSFS_HOOK_SLOT(inode_permission, inode_permission, "selinux_inode_permission")
-SUSFS_HOOK_SLOT(inode_getattr, inode_getattr, "selinux_inode_getattr")
-SUSFS_HOOK_SLOT(inode_unlink, inode_unlink, "selinux_inode_unlink")
-SUSFS_HOOK_SLOT(inode_rmdir, inode_rmdir, "selinux_inode_rmdir")
-SUSFS_HOOK_SLOT(inode_rename, inode_rename, "selinux_inode_rename")
-SUSFS_HOOK_SLOT(inode_link, inode_link, "selinux_inode_link")
-SUSFS_HOOK_SLOT(sb_statfs, sb_statfs, "selinux_sb_statfs")
-SUSFS_HOOK_SLOT(inode_setattr, inode_setattr, "selinux_inode_setattr")
-SUSFS_HOOK_SLOT(inode_getxattr, inode_getxattr, "selinux_inode_getxattr")
-SUSFS_HOOK_SLOT(inode_listxattr, inode_listxattr, "selinux_inode_listxattr")
-SUSFS_HOOK_SLOT(inode_setxattr, inode_setxattr, "selinux_inode_setxattr")
-SUSFS_HOOK_SLOT(inode_removexattr, inode_removexattr, "selinux_inode_removexattr")
-SUSFS_HOOK_SLOT(path_notify, path_notify, "selinux_path_notify")
-
-#define SUSFS_HOOK_SLOT_ENTRY(suffix)                                                              \
-	{                                                                                          \
-		.slot = &susfs_slot_##suffix, .probe = &susfs_probe_##suffix,                       \
-		.entry = susfs_entry_##suffix, .ret = susfs_ret_##suffix,                           \
-	}
-
-struct susfs_install {
-	struct susfs_slot *slot;
-	struct kretprobe *probe;
-	kretprobe_handler_t entry;
-	kretprobe_handler_t ret;
-};
-
-/* The table is the whole of which hooks can be installed: what `sus_path.c` declares, and what each
- * one probes. Order is irrelevant - registration looks the member up. */
-static struct susfs_install susfs_installs[] = {
-	SUSFS_HOOK_SLOT_ENTRY(inode_permission),
-	SUSFS_HOOK_SLOT_ENTRY(inode_getattr),
-	SUSFS_HOOK_SLOT_ENTRY(inode_unlink),
-	SUSFS_HOOK_SLOT_ENTRY(inode_rmdir),
-	SUSFS_HOOK_SLOT_ENTRY(inode_rename),
-	SUSFS_HOOK_SLOT_ENTRY(inode_link),
-	SUSFS_HOOK_SLOT_ENTRY(sb_statfs),
-	SUSFS_HOOK_SLOT_ENTRY(inode_setattr),
-	SUSFS_HOOK_SLOT_ENTRY(inode_getxattr),
-	SUSFS_HOOK_SLOT_ENTRY(inode_listxattr),
-	SUSFS_HOOK_SLOT_ENTRY(inode_setxattr),
-	SUSFS_HOOK_SLOT_ENTRY(inode_removexattr),
-	SUSFS_HOOK_SLOT_ENTRY(path_notify),
-};
-#endif /* __aarch64__ */
-
-static DEFINE_MUTEX(susfs_hooks_lock);
+#include "symbol_resolver.h"
 
 /*
- * How many probes this layer may install, and whether it installs any.
+ * Diagnostics, kept from the two reboots that produced them.
  *
- * A panic on load cannot be debugged from the phone it took down, so the layer has to be able to run a
- * *prefix* of itself: load with `lsm_max=3` and, if that comes up while `lsm_max=4` does not, the fourth
- * hook is the one to look at. It was measured the hard way: the first build of this file rebooted an
- * SM-S938U1 on load, and a layer that installs thirteen probes in one go gives no way to tell which.
+ * `lsm_max=N` installs at most N probes and `lsm_off=1` installs none, so the layer can be run as a
+ * prefix of itself; `lsm_skip=<member>[,<member>]` registers a member and installs nothing, which is
+ * the difference between a module that loads with one feature unarmed and one that refuses to load.
  */
 static int lsm_max = -1;
 module_param(lsm_max, int, 0644);
@@ -230,24 +95,130 @@ static bool lsm_off;
 module_param(lsm_off, bool, 0644);
 MODULE_PARM_DESC(lsm_off, "install no probes at all (diagnostic)");
 
-/*
- * Members this layer must not probe, comma separated: `lsm_skip=inode_permission`.
- *
- * Measured on an SM-S938U1: with `lsm_max=1` the module refuses cleanly, and with `lsm_max=2` the phone
- * reboots - so a kretprobe on `selinux_inode_permission` is fatal on this kernel while one on
- * `selinux_inode_getattr` is not. A skipped member registers *successfully* and installs nothing, which
- * is the difference between a module that loads with one feature unarmed and one that refuses to load
- * at all. It is logged as loudly as it deserves: the features gated on that hook stay off.
- */
 static char lsm_skip[128] = "";
 module_param_string(lsm_skip, lsm_skip, sizeof(lsm_skip), 0644);
 MODULE_PARM_DESC(lsm_skip, "comma-separated members not to probe, e.g. inode_permission");
 
-/* Incremented as probes are installed, so the prefix above is the order the caller registers in. */
+/* The verdict a diverted call returns. Per CPU, because the redirect and the trampoline it jumps to
+ * are the same call on the same CPU - no lock and no lookup in between. */
+static DEFINE_PER_CPU(int, susfs_verdict);
+
+/* One member, its probe, and what it needs to answer. */
+struct susfs_slot {
+	const char *member;
+	const char *symbol;
+	struct kprobe probe;
+	const struct ksu_lsm_hook *hook;
+};
+
+/*
+ * The guard, verbatim in shape from `selinux_hide`: keyed on the calling task, entered before a
+ * replacement runs and left before it returns. A nested entry - the replacement's own path work hitting
+ * the same probe - finds the entry and is answered by the kernel's own code instead.
+ */
+static DEFINE_XARRAY(susfs_probe_guard);
+
+static bool susfs_guard_enter(void)
+{
+	void *old;
+
+	if (xa_load(&susfs_probe_guard, (unsigned long)current))
+		return false;
+	old = xa_store(&susfs_probe_guard, (unsigned long)current, current, GFP_KERNEL);
+	return !IS_ERR(old);
+}
+
+static void susfs_guard_exit(void)
+{
+	xa_erase(&susfs_probe_guard, (unsigned long)current);
+}
+
+/* The trampoline a denial diverts to: the registers are untouched and the verdict is the answer. No
+ * indirect call happens here, which is why this one needs no `__nocfi` reasoning at all. */
+static int __nocfi susfs_tramp_deny(void)
+{
+	int verdict = this_cpu_read(susfs_verdict);
+
+	susfs_guard_exit();
+	return verdict;
+}
+
+/*
+ * The handler every member shares. It is `__nocfi` because it calls the declared replacement through a
+ * pointer whose prototype it cannot restate for thirteen different hooks - the callee is the module's own
+ * function with the kernel's hook prototype, and a checked call through a restated type would trap.
+ */
+static int __nocfi susfs_pre_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct susfs_slot *slot = container_of(p, struct susfs_slot, probe);
+	const struct ksu_lsm_hook *hook = slot->hook;
+	int verdict;
+
+	if (!hook || !hook->replacement)
+		return 0;
+	if (!susfs_guard_enter())
+		return 0;
+
+	verdict = ((int (*)(unsigned long, unsigned long, unsigned long, unsigned long,
+			    unsigned long, unsigned long, unsigned long, unsigned long))(hook->replacement))(
+		regs->regs[0], regs->regs[1], regs->regs[2], regs->regs[3], regs->regs[4], regs->regs[5],
+		regs->regs[6], regs->regs[7]);
+
+	if (!verdict) {
+		/* Pass-through: the guard goes and the kernel's own code runs as if this probe were not
+		 * here. Answering 0 is what upstream's insert path did on the same path. */
+		susfs_guard_exit();
+		return 0;
+	}
+
+	this_cpu_write(susfs_verdict, verdict);
+	instruction_pointer_set(regs, (unsigned long)susfs_tramp_deny);
+	return 1;
+}
+
+/* The members `sus_path.c` declares, and the SELinux implementation each one decides. The symbol is
+ * resolved to an address and the probe is registered on that address first - the rule this project's
+ * delta settled on, because the breakpoint page is accepted where a write is not. */
+#define SUSFS_SLOT(member_)                    \
+	{                                      \
+		.member = #member_,            \
+		.symbol = "selinux_" #member_, \
+		.probe = { .pre_handler = susfs_pre_handler, }, \
+	}
+
+static struct susfs_slot susfs_slots[] = {
+	SUSFS_SLOT(inode_permission),
+	SUSFS_SLOT(inode_getattr),
+	SUSFS_SLOT(inode_unlink),
+	SUSFS_SLOT(inode_rmdir),
+	SUSFS_SLOT(inode_rename),
+	SUSFS_SLOT(inode_link),
+	SUSFS_SLOT(sb_statfs),
+	SUSFS_SLOT(inode_setattr),
+	SUSFS_SLOT(inode_getxattr),
+	SUSFS_SLOT(inode_listxattr),
+	SUSFS_SLOT(inode_setxattr),
+	SUSFS_SLOT(inode_removexattr),
+	SUSFS_SLOT(path_notify),
+};
+
+static DEFINE_MUTEX(susfs_slots_lock);
 static int susfs_installed;
 
-/* Whether `member` is named in `lsm_skip`. Whole names only: `inode_getattr` must not be matched by an
- * entry for `getattr`, and a prefix match would skip a hook nobody asked to skip. */
+static struct susfs_slot *susfs_slot_for(const char *member)
+{
+	size_t i;
+
+	if (!member)
+		return NULL;
+	for (i = 0; i < ARRAY_SIZE(susfs_slots); i++) {
+		if (!strcmp(susfs_slots[i].member, member))
+			return &susfs_slots[i];
+	}
+	return NULL;
+}
+
+/* Whole names only: an entry for `getattr` must not skip `inode_getattr`, and a prefix match would. */
 static bool susfs_skip_named(const char *member)
 {
 	const char *cursor = lsm_skip;
@@ -273,47 +244,47 @@ static bool susfs_skip_named(const char *member)
 	return false;
 }
 
-#ifdef __aarch64__
-static struct susfs_install *susfs_install_for(const char *member)
+/* Address first, name second - `sel_hide_register_probe`'s rule, and the reason it exists: a kernel
+ * that refuses a probe placed by raw address accepts the same probe named through kallsyms. */
+static int susfs_register_probe(struct susfs_slot *slot)
 {
-	size_t i;
+	unsigned long target = find_kernel_symbol_exact(slot->symbol);
+	int ret;
 
-	if (!member)
-		return NULL;
-	for (i = 0; i < ARRAY_SIZE(susfs_installs); i++) {
-		if (!strcmp(susfs_installs[i].slot->member, member))
-			return &susfs_installs[i];
+	if (!target) {
+		pr_err("lsm_hook: %s: no address for %s, so this hook cannot be reached\n", slot->member,
+		       slot->symbol);
+		return -ENOENT;
 	}
-	return NULL;
+
+	slot->probe.addr = (kprobe_opcode_t *)target;
+	ret = register_kprobe(&slot->probe);
+	if (ret == -EINVAL) {
+		pr_warn("lsm_hook: %s: probe on %s by address refused (%d), retrying by name\n",
+			slot->member, slot->symbol, ret);
+		slot->probe.addr = NULL;
+		slot->probe.symbol_name = slot->symbol;
+		ret = register_kprobe(&slot->probe);
+		slot->probe.symbol_name = NULL;
+	}
+	if (ret) {
+		slot->probe.addr = NULL;
+		return ret;
+	}
+	return 0;
 }
-#endif
 
 int ksu_register_lsm_hook(struct ksu_lsm_hook *hook)
 {
+	struct susfs_slot *slot;
+
 	if (!hook || !hook->replacement) {
 		pr_err("lsm_hook: nothing to install\n");
 		return -EINVAL;
 	}
 
-	/* A swap needs the read-only write this file exists to avoid, so it is refused with its reason
-	 * rather than installed and left doing nothing. */
-	/* A member this kernel cannot carry a probe for: registered, installed, and said out loud. The
-	 * caller's hook then does nothing, which is a degradation the log names rather than a feature that
-	 * quietly never runs. */
-	if (susfs_skip_named(hook->head_name)) {
-		SUSFS_LOGI("lsm_hook: %s: skipped by lsm_skip - this hook is not armed and the features it gates "
-			   "stay off\n", hook->head_name ?: "unknown");
-		return 0;
-	}
-
-	/* The bisect: a refusal is something sus_path reports and the module acts on, where a panic is a
-	 * reboot with no evidence - so a bounded run has to stop *before* the probe that would crash. */
-	if (lsm_off || (lsm_max >= 0 && susfs_installed >= lsm_max)) {
-		pr_warn("lsm_hook: %s: not installed (lsm_off=%d lsm_max=%d, %d already installed)\n",
-			hook->head_name ?: "unknown", lsm_off, lsm_max, susfs_installed);
-		return -EOPNOTSUPP;
-	}
-
+	/* A swap needs the read-only write this file exists to avoid. Refused with the reason, because a
+	 * hook that installs and does nothing is worse than one that says it cannot run here. */
 	if (!hook->insert) {
 		pr_err("lsm_hook: %s: replace-shaped hooks need a write into read-only kernel memory, "
 		       "which this kernel refuses; declare it with KSU_LSM_HOOK_INSERT instead\n",
@@ -321,84 +292,73 @@ int ksu_register_lsm_hook(struct ksu_lsm_hook *hook)
 		return -EOPNOTSUPP;
 	}
 
-#ifndef __aarch64__
-	pr_err("lsm_hook: %s: this install path is arm64 only\n", hook->head_name ?: "unknown");
-	return -EOPNOTSUPP;
-#else
-	{
-		struct susfs_install *install;
-		int ret;
-
-		install = susfs_install_for(hook->head_name);
-		if (!install) {
-			pr_err("lsm_hook: %s: no SELinux implementation is known for this member; "
-			       "refusing to install it against something else\n",
-			       hook->head_name ?: "unknown");
-			return -ENOENT;
-		}
-
-		mutex_lock(&susfs_hooks_lock);
-		if (install->slot->hook) {
-			mutex_unlock(&susfs_hooks_lock);
-			pr_err("lsm_hook: %s: already installed\n", hook->head_name ?: "unknown");
-			return -EEXIST;
-		}
-
-		install->probe->kp.symbol_name = install->slot->symbol;
-		install->probe->entry_handler = install->entry;
-		/* The return handler is `handler` in this API; `ret_handler` does not exist. */
-		install->probe->handler = install->ret;
-		install->probe->data_size = sizeof(struct susfs_args);
-		/* The ceiling on concurrent captured calls, not a pool sized to the workload: a path lookup
-		 * can re-enter one of these hooks, and a call that cannot get an instance is simply not
-		 * intercepted - the kernel counts those as misses. */
-		install->probe->maxactive = 64;
-
-		ret = register_kretprobe(install->probe);
-		if (ret) {
-			mutex_unlock(&susfs_hooks_lock);
-			pr_err("lsm_hook: %s: kretprobe on %s refused: %d\n",
-			       hook->head_name ?: "unknown", install->slot->symbol, ret);
-			return ret;
-		}
-		install->slot->hook = hook;
-		susfs_installed++;
-		mutex_unlock(&susfs_hooks_lock);
-
-		SUSFS_LOGI("lsm_hook: %s: kretprobe armed on %s\n", hook->head_name ?: "unknown",
-			   install->slot->symbol);
+	slot = susfs_slot_for(hook->head_name);
+	if (!slot) {
+		pr_err("lsm_hook: %s: no SELinux implementation is known for this member; refusing to "
+		       "install it against something else\n", hook->head_name ?: "unknown");
+		return -ENOENT;
 	}
+
+	/* A member this kernel cannot carry a probe for: registered, installed, and said out loud. */
+	if (susfs_skip_named(hook->head_name)) {
+		SUSFS_LOGI("lsm_hook: %s: skipped by lsm_skip - this hook is not armed and the features it "
+			   "gates stay off\n", hook->head_name ?: "unknown");
+		return 0;
+	}
+
+	if (lsm_off || (lsm_max >= 0 && susfs_installed >= lsm_max)) {
+		pr_warn("lsm_hook: %s: not installed (lsm_off=%d lsm_max=%d, %d already installed)\n",
+			hook->head_name ?: "unknown", lsm_off, lsm_max, susfs_installed);
+		return -EOPNOTSUPP;
+	}
+
+	mutex_lock(&susfs_slots_lock);
+	if (slot->hook) {
+		mutex_unlock(&susfs_slots_lock);
+		pr_err("lsm_hook: %s: already installed\n", hook->head_name ?: "unknown");
+		return -EEXIST;
+	}
+	slot->hook = hook;
+	if (susfs_register_probe(slot)) {
+		slot->hook = NULL;
+		mutex_unlock(&susfs_slots_lock);
+		pr_err("lsm_hook: %s: probe on %s refused\n", hook->head_name ?: "unknown", slot->symbol);
+		return -ENOENT;
+	}
+	susfs_installed++;
+	mutex_unlock(&susfs_slots_lock);
+
+	SUSFS_LOGI("lsm_hook: %s: kprobe armed on %s\n", hook->head_name ?: "unknown", slot->symbol);
 	return 0;
-#endif
 }
 
 void ksu_unregister_lsm_hook(struct ksu_lsm_hook *hook)
 {
-#ifndef __aarch64__
-	(void)hook;
-#else
+	struct susfs_slot *slot;
+
 	if (!hook)
 		return;
 
-	mutex_lock(&susfs_hooks_lock);
-	{
-		struct susfs_install *install = susfs_install_for(hook->head_name);
+	slot = susfs_slot_for(hook->head_name);
+	if (!slot)
+		return;
 
-		if (install && install->slot->hook == hook) {
-			install->slot->hook = NULL;
-			mutex_unlock(&susfs_hooks_lock);
-			/* Cleared before the call, so a re-register cannot find a probe that is being taken
-			 * down; `unregister_kretprobe()` waits for the handlers already running. */
-			unregister_kretprobe(install->probe);
-			SUSFS_LOGI("lsm_hook: %s: kretprobe removed\n", hook->head_name ?: "unknown");
-			return;
-		}
+	mutex_lock(&susfs_slots_lock);
+	if (slot->hook != hook) {
+		mutex_unlock(&susfs_slots_lock);
+		pr_warn("lsm_hook: %s: nothing was installed under this declaration\n",
+			hook->head_name ?: "unknown");
+		return;
 	}
-	mutex_unlock(&susfs_hooks_lock);
-	/* Not a state this tree reaches: `sus_path.c` unregisters what it registered. Said out loud so a
-	 * mismatch shows up in the log rather than as a hook that quietly stayed armed. */
-	pr_warn("lsm_hook: %s: nothing was installed under this declaration\n", hook->head_name ?: "unknown");
-#endif
+	/* Cleared before the call, so a re-register cannot find a probe being taken down.
+	 * `unregister_kprobe()` waits for the handlers already running. */
+	slot->hook = NULL;
+	unregister_kprobe(&slot->probe);
+	if (susfs_installed > 0)
+		susfs_installed--;
+	mutex_unlock(&susfs_slots_lock);
+
+	SUSFS_LOGI("lsm_hook: %s: kprobe removed\n", hook->head_name ?: "unknown");
 }
 
 /* The two entry points the header carries that this install path has no separate use for: an
@@ -416,13 +376,11 @@ void ksu_lsm_unhook(struct ksu_lsm_hook *hook)
 
 void ksu_lsm_hook_init(void)
 {
-	SUSFS_LOGI("lsm_hook: install path is kretprobe-based - security_hook_heads is read-only here and "
-		   "the write that publishes a hook into it does not land\n");
+	SUSFS_LOGI("lsm_hook: install path is kprobe-based - security_hook_heads is read-only here, and a "
+		   "breakpoint is accepted where a write is not\n");
 }
 
 void ksu_lsm_hook_exit(void)
 {
-	/* Nothing global is armed: every probe belongs to a hook the caller registered and the caller's
-	 * own teardown removes it. Saying that beats a silent no-op that reads like a leak. */
 	SUSFS_LOGI("lsm_hook: exit (probes are owned by the hooks that registered them)\n");
 }
