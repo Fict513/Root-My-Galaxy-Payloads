@@ -132,10 +132,12 @@ jobs:
             cp "$f" KernelSU/kernel/susfs/
           done
           cp susfs-lkm/lsm_hook.c KernelSU/kernel/susfs/lsm_hook.c
-
           # The try_umount layer is this repository's rather than the fork's: two files, copied in
-          # here (the same way lsm_hook.c is), then given a call site and a command by the wiring
-          # step below.  Nothing else in this workflow knows about them.
+          # the same way, and given a command and a call site by the wiring step below.  They have
+          # to be here before "Objects into Kbuild", which builds its object list from `ls
+          # susfs/*.c` and therefore only sees what is already in this directory.
+          cp susfs-lkm/susfs_try_umount.c KernelSU/kernel/susfs/susfs_try_umount.c
+          cp susfs-lkm/susfs_try_umount.h KernelSU/kernel/susfs/susfs_try_umount.h
 
           # `symbol_resolver.c` stays, because two of its exports exist nowhere else - the previous run's
           # symbol check named them (`ksu_find_symbol_all`, `ksu_kallsyms_lookup_name`). What it must not

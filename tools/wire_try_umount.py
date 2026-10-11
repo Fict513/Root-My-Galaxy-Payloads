@@ -85,6 +85,20 @@ def insert_before(text, anchor, addition, path, what, indent_from=None):
     return text[:line_start] + indent + addition + "\n" + text[line_start:]
 
 
+def insert_after_first_include(text, addition, path, what):
+    """Insert `addition` after the file's first #include, whatever that include happens to be.
+
+    Used for KernelSU's own files: their include lists are not this repository's to assume, and the
+    first CI run made the point - an anchor on `#include <linux/cred.h>` failed because
+    syscall_hook_manager.c does not include it at v3.4.1.
+    """
+    match = re.search(r"^[ \t]*#include[^\n]*\n", text, flags=re.M)
+    if not match:
+        sys.exit(f"wire_try_umount: no #include line in {path} to anchor the new include on")
+    report(path, what)
+    return text[: match.end()] + addition + text[match.end() :]
+
+
 def already_wired(text):
     return "susfs_try_umount" in text
 
@@ -174,12 +188,14 @@ def wire_setuid_call():
         report(SETUID, "already wired, leaving it alone")
         return
 
-    text = insert_after(
+    # <linux/cred.h> is added on purpose: the call below uses current_uid(), and this file does not
+    # include it (measured by the first CI run, which failed on exactly that assumption).
+    text = insert_after_first_include(
         text,
-        "#include <linux/cred.h>",
+        '#include <linux/cred.h>\n'
         '#include "susfs/susfs_try_umount.h"\t/* CONFIG_KSU_SUSFS_TRY_UMOUNT */\n',
         SETUID,
-        "include the try_umount layer",
+        "include the try_umount layer (and cred.h, for current_uid)",
     )
 
     # Upstream's order: the SUSFS paths come off first, then KernelSU's own umounts.  The uid is
