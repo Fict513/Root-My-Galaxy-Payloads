@@ -197,15 +197,25 @@ jobs:
           set -eu
           kbuild=KernelSU/kernel/Kbuild
           cp "$kbuild" /tmp/kbuild.before
+          # The object list is written out, one entry per source file, and not built with `$(wildcard
+          # $(src)/kernel/susfs/*.c)`: that expression evaluates empty where this Kbuild is parsed, so
+          # the objects were never compiled - and the first attempt showed up as KernelSU's own symbol
+          # check reporting `Symbol 'susfs_init' not found or undefined in .../vmlinux`, which reads like
+          # a missing kernel export and is actually a missing source file. One path per object, in the
+          # shape the rest of this Kbuild uses (`core/init.o`, `feature/sucompat.o`, ...).
+          objects=$(cd KernelSU/kernel && ls susfs/*.c | sed 's/\.c$/.o/' | tr '\n' ' ')
+          if [ -z "$objects" ]; then
+            echo "::error::no susfs sources were copied into KernelSU/kernel/susfs"
+            exit 1
+          fi
           {
             echo ''
             echo '# SUSFS, merged: sources in kernel/susfs/, one init called from kernelsu_init().'
-            echo 'susfs-objs := $(addprefix susfs/,$(patsubst %.c,%.o,$(notdir $(wildcard $(src)/kernel/susfs/*.c))))'
-            echo 'kernelsu-objs += $(susfs-objs)'
+            echo "kernelsu-objs += $objects"
             echo 'ccflags-y += -I$(src)/kernel/susfs'
           } >> "$kbuild"
-          grep -q "susfs-objs" "$kbuild" || { echo "::error::Kbuild append did not take"; exit 1; }
-          tail -6 "$kbuild"
+          grep -q "kernelsu-objs += susfs/" "$kbuild" || { echo "::error::Kbuild append did not take"; exit 1; }
+          tail -4 "$kbuild"
 
       - name: Build
         run: |
