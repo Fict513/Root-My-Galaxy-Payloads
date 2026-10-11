@@ -120,6 +120,23 @@ jobs:
         # them is a device this project roots.
         kmi: ${{ fromJSON(inputs.kmi || '["android12-5.10","android13-5.10","android13-5.15","android14-5.15","android14-6.1","android15-6.6","android16-6.12","android17-6.18"]') }}
         variant: ${{ fromJSON(inputs.variants || '["stable","preview","legacy"]') }}
+        # The pairs the two older lines cannot build, and this is measured rather than assumed: a run
+        # that built them failed with ten errors in `sus_mount.c` against the 6.12 tree (`struct
+        # mnt_namespace` has no `ns_lock` and no `list` there, and `MNT_CURSOR` is gone) - the same
+        # reason upstream's own stable workflow refuses to add those two KMIs. Only `preview` carries
+        # the static-call dispatch that 6.12 and 6.18 need, so they are the two it can serve.
+        #
+        # Excluded rather than tolerated: a pair built with `continue-on-error` would publish nothing
+        # and fail nothing, and the run would read as a success that is short two modules.
+        exclude:
+          - variant: stable
+            kmi: android16-6.12
+          - variant: stable
+            kmi: android17-6.18
+          - variant: legacy
+            kmi: android16-6.12
+          - variant: legacy
+            kmi: android17-6.18
     container:
       image: ghcr.io/ylarod/ddk-min:${{ matrix.kmi }}-${{ inputs.ddk_release || '20260828' }}
       options: --privileged
