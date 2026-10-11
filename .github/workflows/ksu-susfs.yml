@@ -337,9 +337,130 @@ jobs:
             echo "::error::this module does not carry the namespaced kprobe hook layer"; exit 1; }
           echo "merged module: KernelSU + susfs, with our namespaced hook layer"
 
-      - name: Upload
+      - name: Upload the module
         uses: actions/upload-artifact@v7
         with:
           name: kernelsu-susfs-${{ inputs.kmi || 'android15-6.6' }}
           path: KernelSU/kernel/kernelsu.ko
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------
+  # The daemon, with that module embedded.
+  #
+  # This is the half that makes the merge reachable: the flow does not load a `.ko` from disk, it
+  # stages a daemon and the daemon late-loads the module out of **its own assets**
+  # (`aarch64/<kmi>_kernelsu.ko`). So a merged module that no daemon carries is invisible to every
+  # phone, however well it builds - which is exactly the state the module-only job left it in.
+  #
+  # The steps are the ones this repository's pair builds already use for `ksud`: the same NDK, the
+  # same rust toolchain, the same hand-written `.cargo/config.toml` (KernelSU-Next carries neither the
+  # setup script nor a template), and the same binary recovered by finding rather than naming it,
+  # because where it lands is a property of the flavour's layout.
+  # ---------------------------------------------------------------------------------------------
+  daemon:
+    name: daemon (${{ inputs.kmi || 'android15-6.6' }})
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout payloads
+        uses: actions/checkout@v7
+
+      - name: Checkout KernelSU-Next
+        uses: actions/checkout@v7
+        with:
+          repository: KernelSU-Next/KernelSU-Next
+          ref: ${{ env.KSU_REF }}
+          path: KernelSU
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download the merged module
+        uses: actions/download-artifact@v7
+        with:
+          name: kernelsu-susfs-${{ inputs.kmi || 'android15-6.6' }}
+          path: /tmp/merged
+
+      - name: The daemon picks it up from its own assets
+        run: |
+          set -eu
+          # The name is the loader's own: `ksud` asks its asset directory for
+          # `<kmi>_kernelsu.ko` after working the running kernel's KMI out, so the file has to be named
+          # for the KMI this build was made for or it is simply never found.
+          mkdir -p KernelSU/userspace/ksud/bin/aarch64
+          cp /tmp/merged/kernelsu.ko "KernelSU/userspace/ksud/bin/aarch64/${{ inputs.kmi || 'android15-6.6' }}_kernelsu.ko"
+          ls -l KernelSU/userspace/ksud/bin/aarch64/
+
+      - name: Point the suspended Kernel-SU dependencies at KernelSU2
+        run: |
+          # Same reason as the pair build: the `Kernel-SU` organisation is suspended, so its git
+          # dependencies 404 and the lockfile cannot be fetched without this.
+          cd KernelSU
+          mapfile -t manifests < <(find . -name Cargo.toml -o -name Cargo.lock | grep -v '/target/')
+          sed -i 's#github\.com/Kernel-SU/#github.com/KernelSU2/#g' "${manifests[@]}"
+
+      - name: Android NDK
+        run: |
+          curl -sSLo /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+          unzip -q /tmp/ndk.zip -d /tmp
+          echo "ANDROID_NDK_HOME=/tmp/android-ndk-r28c" >> "$GITHUB_ENV"
+
+      - name: Rust toolchain and target
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-linux-android
+
+      - name: libclang for bindgen
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libclang-dev
+          clanglib=$(llvm-config --libdir 2>/dev/null || true)
+          if [ -z "$clanglib" ] || [ ! -e "$clanglib/libclang.so" ]; then
+            clanglib=$(dirname "$(find /usr/lib/llvm-* -name 'libclang.so*' -printf '%p\n' 2>/dev/null | head -1)")
+          fi
+          echo "LIBCLANG_PATH=$clanglib" >> "$GITHUB_ENV"
+          echo "libclang: $clanglib"
+
+      - name: Cargo config for the NDK
+        run: |
+          ndk="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
+          mkdir -p KernelSU/.cargo
+          cat > KernelSU/.cargo/config.toml <<EOF
+          [target.aarch64-linux-android]
+          linker = "$ndk/bin/aarch64-linux-android26-clang"
+
+          [env]
+          CC_aarch64_linux_android = "$ndk/bin/aarch64-linux-android26-clang"
+          CXX_aarch64_linux_android = "$ndk/bin/aarch64-linux-android26-clang++"
+          AR_aarch64_linux_android = "$ndk/bin/llvm-ar"
+          BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android = "--sysroot=$ndk/sysroot -I$ndk/sysroot/usr/include/aarch64-linux-android"
+          EOF
+          cat KernelSU/.cargo/config.toml
+
+      - name: Build ksud
+        run: |
+          set -o pipefail
+          # The NDK's bin has to be on PATH: the build script assembles the AArch64 LKM bootstrap with
+          # the first of `aarch64-linux-gnu-gcc`, `clang`, `llvm-mc` it finds.
+          export PATH="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+          cd KernelSU
+          cargo +stable build --release --locked --target aarch64-linux-android \
+            --manifest-path userspace/ksud/Cargo.toml 2>&1 | tail -5
+          binary=$(find . -type f -name ksud -path '*/aarch64-linux-android/release/*' | head -1)
+          echo "binary: $binary"
+          test -n "$binary"
+          file "$binary"
+          ls -l "$binary"
+          # The embedded module is the whole point of this job, so it is checked in the binary rather
+          # than assumed from the build having succeeded.
+          strings "$binary" | grep -q "${KMI}_kernelsu.ko" || {
+            echo "::error::the built daemon does not name ${KMI}_kernelsu.ko, so it carries no module"
+            exit 1
+          }
+        env:
+          KMI: ${{ inputs.kmi || 'android15-6.6' }}
+
+      - name: Upload the daemon
+        uses: actions/upload-artifact@v7
+        with:
+          name: ksud-susfs-${{ inputs.kmi || 'android15-6.6' }}
+          path: KernelSU/**/aarch64-linux-android/release/ksud
           if-no-files-found: error
