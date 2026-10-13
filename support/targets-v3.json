@@ -575,7 +575,11 @@
       "payloadId": "dm1q-S911BXXSAFZG1",
       "displayName": "Galaxy S23 SM-S911B | Kernel 5.15.189 (S911BXXSAFZG1)",
       "models": ["SM-S911B"],
-      "kernelVersions": ["5.15.189-android13-8-33413713-abS911BXXSAFZG1"],
+      "kernelVersions": ["5.15.189"],
+      "kernelReleases": ["5.15.189-android13-8-33413713-abS911BXXSAFZG1"],
+      "routePolicy": {
+        "prefersShellTransport": true
+      },
       "exploit": {
         "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/artifacts/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so",
         "size": 130608,
