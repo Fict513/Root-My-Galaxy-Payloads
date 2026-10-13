@@ -572,6 +572,22 @@
       }
     },
     {
+      "payloadId": "dm1q-S911BXXSAFZG1",
+      "displayName": "Galaxy S23 SM-S911B | Kernel 5.15.189 (S911BXXSAFZG1)",
+      "models": ["SM-S911B"],
+      "kernelVersions": ["5.15.189-android13-8-33413713-abS911BXXSAFZG1"],
+      "exploit": {
+        "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/artifacts/dm1q-S911BXXSAFZG1/cve-2026-43499-app.so",
+        "size": 130608,
+        "sha256": "7b1ad03f8136e5d130e3f77c0a71a7be87ac301b07b3829e9956c5199d538b06"
+      },
+      "kernelsu": {
+        "url": "https://raw.githubusercontent.com/rushiranpise/Root-My-Galaxy-Payloads/main/kernelsu/ksud-dm1q-S911BXXSAFZG1-kdp",
+        "size": 4879560,
+        "sha256": "07302e5a79cc6c57d23a06cbb996c2f31c50c29589c03cf40278cfe43ab92639"
+      }
+    },
+    {
       "payloadId": "a53x-A536EXXSNGZG3",
       "displayName": "Galaxy A53 5G | Kernel 5.10.237",
       "models": ["SM-A536E"],
