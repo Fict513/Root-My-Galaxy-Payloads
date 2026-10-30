@@ -7,6 +7,8 @@ on:
     paths:
       - backports/apply_dm1q_fzg1_speed.py
       - .github/workflows/dm1q-fzg1-speed-backport.yml
+      - src/preload.c
+      - tests/test_boot_quiet_window.py
   workflow_dispatch:
 
 permissions:
@@ -38,6 +40,9 @@ jobs:
             src/kernelsnitch/kernelsnitch.h \
             src/slide_app.c > backports/dm1q-fzg1-speed.patch
           test -s backports/dm1q-fzg1-speed.patch || grep -q APP_SAFE_SPEED_BACKPORT src/targets/dm1q-S911BXXSAFZG1/target.h
+
+      - name: Test boot quiet-window deadlines
+        run: python3 -m unittest discover -s tests -v
 
       - name: Verify protected target constants unchanged
         shell: bash

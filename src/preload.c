@@ -142,6 +142,22 @@ static long long buddy_high_order_free(void) {
 }
 #endif
 
+#if defined(APP_PAYLOAD) && APP_PAYLOAD
+/* An absolute BOOTTIME deadline prevents interruptions or suspend from
+ * restarting the requested wait. */
+static void sleep_until_boot_deadline(struct timespec deadline) {
+  int ret;
+  do {
+    ret = clock_nanosleep(CLOCK_BOOTTIME, TIMER_ABSTIME, &deadline, NULL);
+  } while (ret == EINTR);
+  if (ret != 0) {
+    /* clock_nanosleep returns an error number rather than setting errno. */
+    errno = ret;
+    SYSCHK(-1);
+  }
+}
+#endif
+
 static void wait_for_boot_quiet_window(void) {
 #if defined(APP_PAYLOAD) && APP_PAYLOAD
   struct timespec uptime;
@@ -182,12 +198,18 @@ static void wait_for_boot_quiet_window(void) {
       stable = 0;
     }
     prev = now;
-    sleep(2);
+    SYSCHK(clock_gettime(CLOCK_BOOTTIME, &now_ts));
+    struct timespec poll_deadline = now_ts;
+    poll_deadline.tv_sec += 2;
+    if (poll_deadline.tv_sec >= APP_MIN_BOOT_UPTIME_SEC) {
+      poll_deadline.tv_sec = APP_MIN_BOOT_UPTIME_SEC;
+      poll_deadline.tv_nsec = 0;
+    }
+    sleep_until_boot_deadline(poll_deadline);
   }
 #endif
-  while (wait_sec > 0) {
-    wait_sec = sleep((unsigned int)wait_sec);
-  }
+  struct timespec deadline = {.tv_sec = APP_MIN_BOOT_UPTIME_SEC, .tv_nsec = 0};
+  sleep_until_boot_deadline(deadline);
 #endif
 }
 

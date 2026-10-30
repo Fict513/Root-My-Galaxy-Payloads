@@ -5,10 +5,12 @@ from pathlib import Path
 def replace_once(path: str, old: str, new: str) -> None:
     p = Path(path)
     text = p.read_text()
+    # Some replacements contain their original block in an #else branch.
+    # Recognize the complete replacement first to avoid nesting it on replay.
+    if new in text:
+        print(f"already applied: {path}")
+        return
     if old not in text:
-        if new in text:
-            print(f"already applied: {path}")
-            return
         raise SystemExit(f"expected source block not found in {path}")
     text = text.replace(old, new, 1)
     p.write_text(text)
@@ -72,6 +74,22 @@ static long long buddy_high_order_free(void) {
 }
 #endif
 
+#if defined(APP_PAYLOAD) && APP_PAYLOAD
+/* An absolute BOOTTIME deadline prevents interruptions or suspend from
+ * restarting the requested wait. */
+static void sleep_until_boot_deadline(struct timespec deadline) {
+  int ret;
+  do {
+    ret = clock_nanosleep(CLOCK_BOOTTIME, TIMER_ABSTIME, &deadline, NULL);
+  } while (ret == EINTR);
+  if (ret != 0) {
+    /* clock_nanosleep returns an error number rather than setting errno. */
+    errno = ret;
+    SYSCHK(-1);
+  }
+}
+#endif
+
 static void wait_for_boot_quiet_window(void) {
 #if defined(APP_PAYLOAD) && APP_PAYLOAD
   struct timespec uptime;
@@ -112,21 +130,33 @@ static void wait_for_boot_quiet_window(void) {
       stable = 0;
     }
     prev = now;
-    sleep(2);
+    SYSCHK(clock_gettime(CLOCK_BOOTTIME, &now_ts));
+    struct timespec poll_deadline = now_ts;
+    poll_deadline.tv_sec += 2;
+    if (poll_deadline.tv_sec >= APP_MIN_BOOT_UPTIME_SEC) {
+      poll_deadline.tv_sec = APP_MIN_BOOT_UPTIME_SEC;
+      poll_deadline.tv_nsec = 0;
+    }
+    sleep_until_boot_deadline(poll_deadline);
   }
 #endif
-  while (wait_sec > 0) {
-    wait_sec = sleep((unsigned int)wait_sec);
-  }
+  struct timespec deadline = {.tv_sec = APP_MIN_BOOT_UPTIME_SEC, .tv_nsec = 0};
+  sleep_until_boot_deadline(deadline);
 #endif
 }
 '''
-if needle not in text:
-    if "buddy_high_order_free" not in text:
-        raise SystemExit("expected quiet-window block not found")
+if needle in text:
+    text = text.replace(needle, replacement, 1)
+elif "buddy_high_order_free" in text:
+    # Upgrade an already-applied backport too, keeping this section idempotent.
+    start = text.index("#if defined(APP_PAYLOAD) && APP_PAYLOAD && \\\n"
+                       "    defined(APP_SAFE_SPEED_BACKPORT)")
+    end = text.index("\n__attribute__((constructor))", start)
+    text = text[:start] + replacement + text[end:]
 else:
-    preload.write_text(text.replace(needle, replacement, 1))
-    print("updated: src/preload.c")
+    raise SystemExit("expected quiet-window block not found")
+preload.write_text(text)
+print("updated: src/preload.c")
 
 # Move the env size helper outside the fresh-session guard so the controlled
 # mm path can honor the 64/4 profile too, and add a scan-only core resolver.
