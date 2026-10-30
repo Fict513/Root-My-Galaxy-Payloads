@@ -72,7 +72,11 @@
 #define KERNELSNITCH_MTE_ENABLED 0
 #endif
 #define MM_PARTIALS 5
-#define CORE 0
+#ifndef RMG_CORE_LITERAL
+#define RMG_CORE_LITERAL 0
+#endif
+#define CORE RMG_CORE_LITERAL
+int rmg_resolve_scan_core(void);
 #ifndef KSNITCH_COLLISIONS
 #define KSNITCH_COLLISIONS 4
 #endif
