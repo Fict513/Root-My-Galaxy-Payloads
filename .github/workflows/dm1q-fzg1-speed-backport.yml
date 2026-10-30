@@ -32,7 +32,7 @@ jobs:
           # cpu_set_t's portable bound is CPU_SETSIZE; AFFINITY_MAX_CPUS is
           # private to a different affinity helper and is not visible here.
           sed -i 's/AFFINITY_MAX_CPUS/CPU_SETSIZE/g' src/util.c
-          git diff -- \
+          git diff d4fa7087360faa82186cf43255d6f485ff768655 -- \
             src/targets/dm1q-S911BXXSAFZG1/target.h \
             src/common.h \
             src/preload.c \
